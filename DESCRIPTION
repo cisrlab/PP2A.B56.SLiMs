@@ -1,0 +1,21 @@
+Package: itcpredictr
+Title: What the Package Does (one line, title case)
+Version: 0.0.0.9000
+Authors@R: person("First", "Last", email = "first.last@example.com", role = c("aut", "cre"))
+Description: What the package does (one paragraph).
+Depends: R (>= 4.4.0), 
+    randomForestSRC (>= 3.2.3),
+    alakazam (== 1.4.1),
+    randomForest,
+    glmnet (== 4.1-8),
+    glmnetUtils (== 1.1.9)
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.3.2
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Imports: 
+    pkgload,
+    shiny

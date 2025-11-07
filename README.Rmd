@@ -1,0 +1,171 @@
+---
+title: "itcpredictr readme"
+output: 
+    github_document:
+        toc: true
+        number_sections: true
+    
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# itcpredictr
+
+## INSTALLATION
+
+### R/RStudio
+
+First we will install and set up R/RStudio
+
+-- Install [R](https://cran.r-project.org) 
+
+-- Optional, Install [RStudio](https://posit.co/download/rstudio-desktop/)
+
+-- Within R/RStudio:
+
+-- Install [bioconductor](https://www.bioconductor.org/)
+
+``` r
+if (!require("BiocManager", quietly = TRUE)) install.packages("BiocManager")                  
+BiocManager::install(version = "3.19") 
+```
+-- Install Biostrings
+
+``` r
+BiocManager::install(“Biostrings”) 
+```
+
+-- Install GenomicAlignments
+
+``` r
+BiocManager::install(“GenomicAlignments”) 
+```
+
+-- Install devtools
+
+``` r
+install.packages(“devtools”) 
+```
+
+-- install itcpredictr by first expanding the tar.gz file. Then use devtools to install
+
+``` r
+devtools::install(“itcpredictr-main/itcpredictr-main/”) 
+```
+
+### MEME Suite
+
+The *itcpredictr* package makes calls to the 
+[MEME Suite](https://meme-suite.org/meme/) on the command-line 
+to provide the most accurate predictions.  You can look at the
+[installation](https://meme-suite.org/meme/doc/install.html?man_type=web) 
+instructions here or try the following depending upon the operating system.
+
+#### MACOS
+
+Use macports or install from source. Make sure that the
+meme and fimo commands can be accessed from the command line
+by adjusting your *PATH* variable
+
+Using MacPorts: port install meme
+
+From Source: review <https://meme-suite.org/meme/doc/install.html>
+
+#### LINUX
+
+--- Download meme source:
+```
+wget <https://meme-suite.org/meme/meme-software/5.5.6/meme-5.5.6.tar.gz>
+```
+--- Expand:
+```
+tar zxvf meme-5.5.6.tar.gz
+```
+
+--- Read requirements in MEME Suite's INSTALL document
+
+--- Build meme and install
+```
+cd meme-5.5.6
+
+./configure --prefix=\$HOME --with-url=<http://meme-suite.org> --enable-build-libxml2 --enable-build-libxslt
+
+make –j4
+
+make install
+```
+#### WINDOWS
+
+Currently itcpredictr can use the meme suite built using 
+[Cygwin](https://www.cygwin.com/)
+
+Install [Cygwin](https://www.cygwin.com/) with packages:
+*gcc*
+*automake*
+*wget* 
+*python-3.9*
+*perl*
+*make*
+*zlib* 
+*zlib-devel*
+*imagemagick* 
+*ghostscript*
+
+Within your Cygwin instance:
+
+--- Download meme source
+```
+wget <https://meme-suite.org/meme/meme-software/5.5.6/meme-5.5.6.tar.gz>
+```
+
+--- Build meme and install
+```
+cd meme-5.5.6
+
+./configure --prefix=\$HOME --with-url=<http://meme-suite.org> --enable-build-libxml2 --enable-build-libxslt
+
+make –j4
+
+make install
+```
+
+
+## Usage
+
+The *itcpredictr* package contains the *getITC_2024_0_27_cv()* call that
+makes the prediction of itc given an extended amino acid sequence.  Within
+the amino acid sequence, dots (\\.) can separate the motif sequence from the 
+full sequence. Phosporylation sites can be indicates with a (pS) or (sP) to 
+indicate whether the phosporylation site was shown to be reflective of an D
+or E within the amino acid sequence.
+
+```{r}
+suppressPackageStartupMessages(library(itcpredictr)) 
+suppressPackageStartupMessages(getITC_2024_06_27_cv("LDTLRETQE")) 
+getITC_2024_06_27_cv("K.L(pS)PIIED(pS)") 
+```
+
+You can also pass in a vector of sequences.
+
+```{r}
+seq <- c(
+        "WTSFFSG.CSPIEEEAH",
+        "K.L(pS)PIIED(pS)",
+        "LDTLRETQE",
+        "LSIKK.LSPIIEDSREA",
+        "WTSFFSG.LSPIE(Sp)EAH",
+        "L(pS)PIIEDDREADH"
+    )
+seq_df <- data.frame(
+    seq = seq,
+    itc = getITC_2024_06_27_cv(seq),
+    stringsAsFactors = FALSE
+)
+
+knitr::kable(seq_df)
+
+```
