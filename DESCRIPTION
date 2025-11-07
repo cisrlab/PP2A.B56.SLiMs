@@ -7,7 +7,7 @@ Depends: R (>= 4.4.0),
     randomForestSRC (>= 3.2.3),
     alakazam (== 1.4.1),
     randomForest,
-    glmnet (== 4.1-8),
+    glmnet (== 4.1.10),
     glmnetUtils (== 1.1.9)
 License: What license is it under?
 Encoding: UTF-8
