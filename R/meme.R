@@ -1,5 +1,9 @@
 
 
+have_ext_fimo<-function() {
+  return(file.exists(itcpredictr:::meme$getBin("fimo")))
+}
+
 
 #https://www.r-bloggers.com/identifying-the-os-from-r/
 get_os<-function() {
@@ -181,7 +185,8 @@ meme$fimo<-function(
   no_qvalue = FALSE,
   thresh=0.5,
   max_stored_scores = 100000,
-  debug = FALSE
+  debug = FALSE,
+  use_internal = !have_ext_fimo()
   ) {
 
   if (debug) {cat("meme$fimo: start\n");}
@@ -199,8 +204,16 @@ meme$fimo<-function(
   }
   unlink(file.path);
   writeXStringSet(sequences, file.path);
+
+  fxn <- meme$fimoFasta
+  if (use_internal) {
+      message("Using internal meme")
+      fxn <- itcpredictr:::fimoF
+  }
+
+
   fimo.results = tryCatch(
-    expr = meme$fimoFasta(
+    expr = fxn(
       file.path,
       meme_xml = meme_xml,
       bg_file = bg_file,
@@ -317,7 +330,11 @@ readFimoTxt<-function(
   con = file(fimo_txt,"r");
   lines = readLines(con);
   close(con);
+  ans <- readFimoLines(lines, debug=debug)
+  return(ans)
+}
 
+readFimoLines<-function(lines, debug=FALSE) {
   if (debug) { print("raw file"); print(head(lines)); }
 
   lines = lines[lines != ""];
@@ -333,10 +350,32 @@ readFimoTxt<-function(
   ncol = length(tokens[[1]]);
 
   ans.df = t(matrix(unlist(tokens),nrow=ncol));
-  header = ans.df[1,];
-  if (debug) { print("header"); print(header); }
-  if (debug) { print("ans.df"); print(head(ans.df)); }
-  ans.df = ans.df[-1,];
+
+  has_header <- ans.df[1,1] == "#pattern name"
+
+  # First time, fimo internal call, header exists.  Next call,
+  # Header is not printed.  This is due to an internal static
+  # variable within fimo-output.c
+  if (has_header) {
+    header = ans.df[1,];
+    if (debug) { print("header"); print(header); }
+    if (debug) { print("ans.df"); print(head(ans.df)); }
+    ans.df = ans.df[-1,];
+  } else {
+    header_cols <- c(
+      "#pattern name",
+      "sequence name",
+      "start",
+      "stop",
+      "strand",
+      "score",
+      "p-value",
+      "q-value",
+      "matched sequence"
+    )
+    header <- header_cols
+  }
+
   if (debug) { print("ans.df2"); print(head(ans.df)); }
   #print(ans.df);
   if (debug) {
@@ -390,6 +429,10 @@ readFimoTxt<-function(
     attr(ans.df, "lines") = lines;
     #attr(ans.df, "tokens") = tokens;
   }
+
+  ans.df <- ans.df[order(ans.df$p.value, decreasing=FALSE),]
+
+
   return(ans.df);
 
 
@@ -550,12 +593,12 @@ meme$testMeme<-function(debug=FALSE) {
   );
 
   meme.results = meme$meme(seqs, debug=debug);
-  fimo.results = meme$fimo(seqs, meme.results, debug=debug);
-
+  fimo.results = meme_fimo(seqs, meme.results, debug=debug);
+  fimo.results.internal = meme_fimo(seqs, meme.results, debug=debug, use_internal = TRUE)
   ans = list();
-  ans$meme.results = meme.results;
-  ans$fimo.results = fimo.results;
-
+  ans$meme.results = meme.results
+  ans$fimo.results = fimo.results
+  ans$fimo.results2 = fimo.results.internal
   return(ans);
 }
 

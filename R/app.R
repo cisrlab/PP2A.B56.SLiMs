@@ -9,20 +9,6 @@
 
 library(shiny)
 
-have_meme<-function() {
-    message("have_meme")
-    ans <- tryCatch(
-        file.exists(itcpredictr:::meme$getBin("fimo")),
-        error = function(e) {FALSE},
-        silent = TRUE
-    )
-    message(ans)
-    return(ans)
-}
-
-
-
-
 #' Run itcpredictapp
 #'
 #' @param ...
@@ -31,10 +17,8 @@ have_meme<-function() {
 #' @export
 #'
 #' @examples
+#' @import shiny
 itcpredictApp <- function(...) {
-
-
-
 
   # Define UI for application that draws a histogram
   ui <- fluidPage(
@@ -186,7 +170,7 @@ server <- function(input, output) {
             vroom::vroom_write(RV$data, file)
         }
     )
-    output$have_meme <- renderText(paste0("have meme suite:", have_meme()))
+    output$have_meme <- renderText(paste0("have fimo (meme):", itcpredictr:::have_ext_fimo()))
 
 }
 

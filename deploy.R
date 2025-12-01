@@ -20,6 +20,7 @@
 rsconnect::deployApp( appDir  = './',
                       appName = 'itc_predict',
                       account = 'sjmcilwain', ## change to your wisc NetID
-                      server  = 'connect.doit.wisc.edu' #,
-#		      forceUpdate = TRUE
+                      server  = 'connect.doit.wisc.edu' ,
+		      quarto  = FALSE,
+		      forceUpdate = TRUE
 )
