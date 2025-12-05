@@ -24,7 +24,7 @@ itcpredictApp <- function(...) {
   ui <- fluidPage(
 
     # Application title
-    titlePanel("Predict ITC Values"),
+    titlePanel("Predict PP2A-B56 SLiMs Kd values"),
 
     # Sidebar with a textArea input for sequences
     sidebarLayout(
