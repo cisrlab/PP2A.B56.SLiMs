@@ -51,7 +51,7 @@ BiocManager::install(“GenomicAlignments”)
 install.packages(“devtools”) 
 ```
 
--- install PP2A_B56_SLiMs by first expanding the tar.gz file. Then use devtools to install
+-- install PP2A_B56_SLiMs by using devtools
 
 ``` r
 devtools::install_github(“cisrlab/PP2A_B56_SLiMs”) 
