@@ -47,7 +47,7 @@ else
 
   # Use xslt-config if available
   xslt-config --version >/dev/null 2>&1
-  if [ $? -eq 0 ]; then 
+  if [ $? -eq 0 ]; then
     echo "XLST!!!!"
     PKGCONFIG_CFLAGS2=`xslt-config --cflags`
     PKGCONFIG_CFLAGS="$PKGCONFIG_CFLAGS $PKGCONFIG_CFLAGS2"
@@ -58,13 +58,15 @@ else
     if [ $? -eq 0 ]; then
       echo "xslt pkgconfig!!!"
       PKGCONFIG_CFLAGS2=`pkg-config --cflags libxslt`
-      PKGCONFIG_CFLAGS="$PKDCONFIG_CFLAGS $PKGCONFIG_CFLAGS2"
+      echo $PKGCONFIG_CFLAGS2
+      PKGCONFIG_CFLAGS="$PKGCONFIG_CFLAGS $PKGCONFIG_CFLAGS2"
       PKGCONFIG_LIBS2=`pkg-config --libs libxslt`
+      echo $PKGCONFIG_LIBS2
       PKGCONFIG_LIBS="$PKGCONFIG_LIBS $PKGCONFIG_LIBS2"
     fi
   fi
 
-  
+
   if [ "$PKGCONFIG_CFLAGS" ] || [ "$PKGCONFIG_LIBS" ]; then
     echo "Found pkg-config cflags and libs!"
     PKG_CFLAGS=`echo ${PKGCONFIG_CFLAGS} | tr ' ' '\n' | sort | uniq`
