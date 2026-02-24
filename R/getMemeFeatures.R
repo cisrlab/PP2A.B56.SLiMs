@@ -24,7 +24,7 @@ getMemeFeatures<-function(Sequences, use_internal=!have_ext_fimo(), debug=FALSE)
         }
     }
     ans = data.frame(
-        meme_Ba   = meme_Ba,
+        meme_Ba   = round(meme_Ba, digits=6),
         meme_Ba_idx = meme_Ba_idx,
         stringsAsFactors=FALSE
     );
