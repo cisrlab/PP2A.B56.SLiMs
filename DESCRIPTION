@@ -5,14 +5,14 @@ Authors@R: person("First", "Last", email = "first.last@example.com", role = c("a
 Description: What the package does (one paragraph).
 Depends: R (>= 4.4.0), 
     randomForestSRC (>= 3.2.3),
-    alakazam (== 1.4.1),
+    alakazam (>= 1.4.1),
     randomForest,
     glmnet (== 4.1.10),
     glmnetUtils (== 1.1.9)
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3

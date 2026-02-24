@@ -378,7 +378,7 @@ getTestFxn<-function(regression_algorithm) {
 
 }
 
-getITCByPath2<-function(sequences, itc.path, debug = FALSE) {
+getITCByPath2<-function(sequences, itc.path, enforce_6E = FALSE, debug = FALSE) {
   vars = load(itc.path);
 
   if (debug){print(vars);}
@@ -405,6 +405,11 @@ getITCByPath2<-function(sequences, itc.path, debug = FALSE) {
   }
   if ("itc_bottom_cap" %in% vars) {
     new_itc[new_itc < itc_bottom_cap] = itc_bottom_cap;
+  }
+
+  if (enforce_6E) {
+    #message("Enforce 6E")
+    new_itc[new_fs$Clip_Pos6_E == "No"] <- 95
   }
 
   if (debug) {
@@ -444,13 +449,13 @@ getITC<-function(sequences, model2=TRUE) {
 #'
 #' @examples
 #' getITC_2024_06_27_cv("LDTLRETQE")
-getITC_2024_06_27_cv <- function(sequences, debug=FALSE) {
+getITC_2024_06_27_cv <- function(sequences, enforce_6E = FALSE, debug=FALSE) {
     itc.path <- system.file(
         "extdata",
         "res_tr.m107_rem1_95_all_rfsrc_log.2024_06_27_cv.model.RData",
         package="itcpredictr"
     )
-    return(getITCByPath2(sequences = sequences, itc.path = itc.path, debug = debug))
+    return(getITCByPath2(sequences = sequences, itc.path = itc.path, debug = debug, enforce_6E = enforce_6E))
 }
 
 
