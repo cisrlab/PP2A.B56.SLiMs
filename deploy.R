@@ -15,7 +15,7 @@
 #  - https://data-viz.it.wisc.edu/content/223/
 #
 
-#devtools::install_github("cisrlab/itcpredictr")
+devtools::install_github("cisrlab/PP2A.B56.SLiMs")
 
 rsconnect::deployApp( appDir  = './',
                       appName = 'itc_predict',
