@@ -18,6 +18,7 @@
 #include <time.h>
 #include <assert.h>
 #include <stdio.h>
+#include <R_ext/Error.h>
 
 /*************************************************************************
  * Read a set of floats from the specified column of a tab-delimited
@@ -212,7 +213,7 @@ double estimate_pi_zero
    ARRAY_T* p_values)
 {
   DEBUG_MSG(NORMAL_VERBOSE, "#   Estimating pi_0.\n");
-  
+
   int num_pvalues = get_array_length(p_values);
 
   // Sort the p-values in ascending order.
@@ -295,9 +296,9 @@ double estimate_pi_zero
     }
     fprintf(pi_zero_file, "p-value threshold\tlocal pi-zero\tfinal pi-zero\n");
     for (i_lambda = 0; i_lambda < num_lambda; i_lambda++) {
-      double lambda = ((double)(i_lambda + 1) 
+      double lambda = ((double)(i_lambda + 1)
 		       / (double)num_lambda) * max_lambda;
-      fprintf(pi_zero_file, "%g\t%g\t%g\n", 
+      fprintf(pi_zero_file, "%g\t%g\t%g\n",
 	      lambda,
 	      get_array_item(i_lambda, pi_zeroes),
 	      pi_zero);
@@ -319,7 +320,7 @@ double estimate_pi_zero
  * In order to estimate pi0 we need to have the distribution of pvalues.
  * We can get the distribution from the pvalues array only if it contains
  * all the observed pvalues. If we don't have all the observed p-values
- * we can use the uniformly sampled subset of pvalues stored in the reservoir 
+ * we can use the uniformly sampled subset of pvalues stored in the reservoir
  * sampler. If neither the full set of pvalues, or uniformly sampled pvalues
  * are avilable, then we can't estimate pi0, and simply use pi0 = 1.0.
  *************************************************************************/
@@ -356,7 +357,7 @@ void compute_qvalues(
   myassert(1, is_sorted(true, pvalues), "The p-values are not sorted.");
 
   double pi_zero = 1.0;
-  
+
   // Estimate pi_zero, if requested.
   if (use_pi_zero) {
 

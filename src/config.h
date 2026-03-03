@@ -4,6 +4,9 @@
 /* Using AIX */
 /* #undef AIX */
 
+/* The alternate site URL */
+#define ALT_URL ""
+
 /* Path to convert utility */
 #define CONVERT_PATH "/opt/local/bin/convert"
 
@@ -65,9 +68,6 @@
    to 0 otherwise. */
 #define HAVE_MALLOC 1
 
-/* Define to 1 if you have the <memory.h> header file. */
-#define HAVE_MEMORY_H 1
-
 /* Define to 1 if you have the `memset' function. */
 #define HAVE_MEMSET 1
 
@@ -102,6 +102,9 @@
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #define HAVE_STDINT_H 1
+
+/* Define to 1 if you have the <stdio.h> header file. */
+#define HAVE_STDIO_H 1
 
 /* Define to 1 if you have the <stdlib.h> header file. */
 #define HAVE_STDLIB_H 1
@@ -164,14 +167,14 @@
 #define HAVE__BOOL 1
 
 /* Build host name */
-#define HOSTNAME "unknown4822547bec6a.attlocal.net"
+#define HOSTNAME "static-209-70.vpn.wisc.edu"
 
 /* Using IRIX64 */
 /* #undef IRIX64 */
 
 /* Define to 1 if `lstat' dereferences a symlink specified with a trailing
    slash. */
-/* #undef LSTAT_FOLLOWS_SLASHED_SYMLINK */
+#define LSTAT_FOLLOWS_SLASHED_SYMLINK 1
 
 /* Define to the sub-directory where libtool stores uninstalled libraries. */
 #define LT_OBJDIR ".libs/"
@@ -195,7 +198,7 @@
 #define PACKAGE_NAME "meme"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "meme 4.11.2"
+#define PACKAGE_STRING "meme 5.5.6"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "meme"
@@ -204,7 +207,7 @@
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "4.11.2"
+#define PACKAGE_VERSION "5.5.6"
 
 /* Path to Perl */
 #define PERL "/usr/bin/perl"
@@ -215,14 +218,22 @@
 /* Define as the return type of signal handlers (`int' or `void'). */
 #define RETSIGTYPE void
 
-/* Define to 1 if you have the ANSI C header files. */
+/* The site URL */
+#define SITE_URL "https://meme-suite.org/meme"
+
+/* The URL of the MEME SUITE source code and databases. */
+#define SOURCE_URL "https://meme-suite.org"
+
+/* Define to 1 if all of the C90 standard headers exist (not just the ones
+   required in a freestanding environment). This macro is provided for
+   backward compatibility; new code need not use it. */
 #define STDC_HEADERS 1
 
 /* Using SunOS */
 /* #undef SunOS */
 
 /* Version number of package */
-#define VERSION "4.11.2"
+#define VERSION "5.5.6"
 
 /* Define to empty if `const' does not conform to ANSI C. */
 /* #undef const */
@@ -233,7 +244,7 @@
 /* Define to rpl_malloc if the replacement function should be used. */
 /* #undef malloc */
 
-/* Define to `int' if <sys/types.h> does not define. */
+/* Define as a signed integer type capable of holding a process identifier. */
 /* #undef pid_t */
 
 /* Define to rpl_realloc if the replacement function should be used. */

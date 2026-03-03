@@ -1,6 +1,6 @@
 /*
  * $Id: mast.h 1425 2006-11-01 07:14:28Z tbailey $
- * 
+ *
  * $Log$
  * Revision 1.2  2005/10/20 00:20:52  tbailey
  * *** empty log message ***
@@ -10,12 +10,12 @@
  *
  */
 
-#ifndef MAST_H 
-#define MAST_H 
+#ifndef MAST_H
+#define MAST_H
 
 #include "array.h"
 #include "meme.h"
-#include "macros.h"
+//#include "macros.h"
 #include "general.h"
 #include "pssm-distr.h"
 #include <sys/types.h>
@@ -25,9 +25,9 @@
         Macro definitions
 */
 
-/* compute the p-value of value of n samples of an extreme value whose 
+/* compute the p-value of value of n samples of an extreme value whose
    p-value is known and return it in r
-*/ 
+*/
 #define EV(pvalue, n, r) \
   { \
     double __ev_tmp__ = (pvalue) * (n); /* good approximation if small */ \
@@ -36,7 +36,7 @@
   }
 
 /*
-        Data definitions 
+        Data definitions
 */
 
 /* scores for each position in a sequence */
@@ -103,7 +103,7 @@ double qfast(
 
 void free_tiling(
   TILING tiling
-); 
+);
 
 char *create_diagram(
   XLATE_T *xlate,

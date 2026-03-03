@@ -5,11 +5,11 @@
  * PROJECT: shared
  * COPYRIGHT: 1999-2019, WSN, TLB
  * VERSION: $Revision: 1.5 $
- * DESCRIPTION: Data structure for manipulating a list of strings. 
+ * DESCRIPTION: Data structure for manipulating a list of strings.
  **************************************************************************/
 #include "string-list.h"
 #include <string.h>
-#include <regex-utils.h>
+#include "regex-utils.h"
 #include <assert.h>
 
 /*************************************************************************
@@ -20,7 +20,7 @@ struct string_list_t {
   int     max_strings;    /* Total amount of memory allocated. */
   int     longest_string; /* Length of the longest allowed string. */
   char** strings;        /* The strings themselves. */
-  double* scores;        /* Scores for optional sorting of strings */ 
+  double* scores;        /* Scores for optional sorting of strings */
 };
 
 /*************************************************************************
@@ -92,12 +92,12 @@ static void resize_string_list
     a_list->longest_string = new_length + 1;
 
     for (i_string = 0; i_string < a_list->max_strings; i_string++) {
-      a_list->strings[i_string] 
-	= (char*)mm_realloc(a_list->strings[i_string], 
+      a_list->strings[i_string]
+	= (char*)mm_realloc(a_list->strings[i_string],
 			    a_list->longest_string * sizeof(char));
     }
   }
-}					    
+}
 
 /*************************************************************************
  * Get the nth string from a list.
@@ -119,7 +119,7 @@ char* get_nth_string
 }
 
 void set_nth_string
-  (char*          new_string,            
+  (char*          new_string,
    int            n,
    STRING_LIST_T* a_list)
 {
@@ -183,7 +183,7 @@ ARRAY_T* get_string_list_scores
  * Append to the nth string.
  *************************************************************************/
 void append_to_nth_string
-  (char*          new_string,            
+  (char*          new_string,
    int            n,
    STRING_LIST_T* a_list)
 {
@@ -201,7 +201,7 @@ void append_to_nth_string
  * Prepend a string to all strings.
  *************************************************************************/
 void prepend_to_strings
-  (char*          new_string,            
+  (char*          new_string,
    STRING_LIST_T* a_list)
 {
   int i, j;
@@ -237,12 +237,12 @@ void add_string
 
   /* Reallocate space if there isn't any. */
   if (a_list->num_strings >= a_list->max_strings) {
-    a_list->strings = (char**)mm_realloc(a_list->strings, 
-					 (a_list->max_strings 
+    a_list->strings = (char**)mm_realloc(a_list->strings,
+					 (a_list->max_strings
 					  + DEFAULT_MAX_STRINGS)
 					 * sizeof(char*));
     for (i_string = 0; i_string < DEFAULT_MAX_STRINGS; i_string++) {
-	a_list->strings[a_list->max_strings + i_string] 
+	a_list->strings[a_list->max_strings + i_string]
 	    = (char*)mm_calloc(a_list->longest_string + 1, sizeof(char));
     }
     a_list->max_strings += DEFAULT_MAX_STRINGS;
@@ -251,7 +251,7 @@ void add_string
 
     a_list->scores
       = (double*)mm_realloc(a_list->scores,
-			   (a_list->max_strings 
+			   (a_list->max_strings
 			    + DEFAULT_MAX_STRINGS) * sizeof(double));
 
 
@@ -361,7 +361,7 @@ bool have_string
 {
   char* this_string; /* The current string in the list. */
   int    i_string;    /* Index of the current string. */
-  
+
   check_null_list(a_list);
 
   for (i_string = 0; i_string < get_num_strings(a_list); i_string++) {
@@ -382,7 +382,7 @@ bool have_substring
 {
   char* this_string; /* The current string in the list. */
   int    i_string;    /* Index of the current string. */
-  
+
   check_null_list(a_list);
 
   for (i_string = 0; i_string < get_num_strings(a_list); i_string++) {
@@ -403,7 +403,7 @@ bool have_regex
 {
   char* this_string; /* The current string in the list. */
   int    i_string;    /* Index of the current string. */
-  
+
   check_null_list(a_list);
 
   // Compile the regular expression.
@@ -420,7 +420,7 @@ bool have_regex
 } // have_regex
 
 /*************************************************************************
- * Return list of strings matching a given POSIX regular expression 
+ * Return list of strings matching a given POSIX regular expression
  * in a given list.
  *************************************************************************/
 STRING_LIST_T *get_matches_in_string_list
@@ -428,7 +428,7 @@ STRING_LIST_T *get_matches_in_string_list
    STRING_LIST_T *a_list)
 {
   char* this_string; /* The current string in the list. */
-  
+
   check_null_list(a_list);
 
   // Compile the regular expression.
@@ -458,7 +458,7 @@ int get_index_in_string_list(char* a_string,
                              STRING_LIST_T* a_list) {
   char* this_string; /* The current string in the list. */
   int   i_string;    /* Index of the current string. */
-  
+
   check_null_list(a_list);
 
   for (i_string = 0; i_string < get_num_strings(a_list); i_string++) {
@@ -545,12 +545,12 @@ static int score_compare_reverse
 /*************************************************************************
  * Sort a list of strings in place.
  *************************************************************************/
-void sort_string_list 
+void sort_string_list
   (STRING_LIST_T* a_list)
 {
   check_null_list(a_list);
 
-  qsort((void *)(a_list->strings), a_list->num_strings, 
+  qsort((void *)(a_list->strings), a_list->num_strings,
 	sizeof(char*), string_compare);
 }
 
@@ -562,32 +562,32 @@ void sort_string_list_by_score
    bool      reverse) //Descending order
 {
   check_null_list(a_list);
-  
+
   FORQSORT_T*  forqsort; // Array of strings to be sorted.
   int num_stored = a_list->num_strings; // Number of strings to be sorted.
   int i_stored = 0;
 
-  forqsort = (FORQSORT_T *)mm_malloc(sizeof(FORQSORT_T) * 
+  forqsort = (FORQSORT_T *)mm_malloc(sizeof(FORQSORT_T) *
 				    num_stored);
 
   for (i_stored = 0; i_stored < num_stored; i_stored++) {
 
     forqsort[i_stored].string =
-      (char *)mm_malloc(sizeof(char) * 
-		       (strlen(get_nth_string(i_stored, 
+      (char *)mm_malloc(sizeof(char) *
+		       (strlen(get_nth_string(i_stored,
 					      a_list)) + 1));
-    
-    sprintf(forqsort[i_stored].string, "%s", get_nth_string(i_stored, 
+
+    sprintf(forqsort[i_stored].string, "%s", get_nth_string(i_stored,
 							    a_list));
 
     forqsort[i_stored].score = a_list->scores[i_stored];
   }
   if (reverse) {
-    qsort((void *)(forqsort), i_stored, 
+    qsort((void *)(forqsort), i_stored,
 	  sizeof(FORQSORT_T), score_compare_reverse);
   }
   else {
-    qsort((void *)(forqsort), i_stored, 
+    qsort((void *)(forqsort), i_stored,
 	  sizeof(FORQSORT_T), score_compare);
   }
   // Transfer values in the original array
@@ -600,11 +600,11 @@ void sort_string_list_by_score
   for (i_stored = 0; i_stored < num_stored; i_stored++) {
     myfree(forqsort[i_stored].string);
   }
-  myfree(forqsort);  
+  myfree(forqsort);
 
 }
 /***************************************************************************
- * Given two sets, A and B, find 
+ * Given two sets, A and B, find
  *  - A intersect B,
  *  - A minus B, and
  *  - B minus A.
@@ -683,7 +683,7 @@ char* combine_string_list
   check_null_list(a_list);
 
   /* Compute the length of the return string. */
-  string_length = (get_num_strings(a_list) * 
+  string_length = (get_num_strings(a_list) *
 		   (max_string_length(a_list) + strlen(separator))) + 2;
 
   /* Allocate memory for the string. */
@@ -744,7 +744,7 @@ STRING_LIST_T* read_string_list
   if (verbosity > NORMAL_VERBOSE) {
     fprintf(stderr, "Read %d names.\n", get_num_strings(return_value));
   }
-  
+
   return(return_value);
 }
 
@@ -752,17 +752,17 @@ STRING_LIST_T* read_string_list
  * Read a list of strings from the named file.
  *****************************************************************************/
 STRING_LIST_T* read_string_list_from_file
-  (char* filename) 
+  (char* filename)
 {
     STRING_LIST_T* string_list;
     FILE* string_list_file = NULL;
 
     if (open_file(
-          filename, 
-          "r", 
-          1, 
-          "string list", 
-          "string list", 
+          filename,
+          "r",
+          1,
+          "string list",
+          "string list",
           &string_list_file
         ) == 0) {
       die("Couldn't open the file %s.\n", filename);
@@ -791,7 +791,7 @@ STRING_LIST_T* new_string_list_char_split(
   for (i=0; i<len; i++) {
     if (i==len-1 || str[i] == separator) {
       if (i != len-1) str[i] = '\0';
-      add_string(&(str[i_start]), string_list); 
+      add_string(&(str[i_start]), string_list);
       i_start = i+1;
     }
   }
@@ -898,7 +898,7 @@ bool has_duplicates
       char* second_string = get_nth_string(j_string, my_list);
 
       // Are the strings the same, but with different indices?
-      if ((i_string != j_string) && 
+      if ((i_string != j_string) &&
 	  (strcmp(first_string, second_string) == 0)) {
 	return_value = true;
 
@@ -919,7 +919,7 @@ bool has_duplicates
     }
   }
 
-  // Print the final EOL.  
+  // Print the final EOL.
   if (printed_message == true) {
     fprintf(stderr, "\n");
   }
