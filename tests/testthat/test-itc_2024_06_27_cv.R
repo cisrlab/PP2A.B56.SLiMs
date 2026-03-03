@@ -1,6 +1,5 @@
 test_that("2024_06_27_cv works", {
 
-
     # Load the original training predictions
     itc.path <- system.file(
         "extdata",
