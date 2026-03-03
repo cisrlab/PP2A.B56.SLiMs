@@ -1,7 +1,7 @@
 
 
 have_ext_fimo<-function() {
-  return(file.exists(itcpredictr:::meme$getBin("fimo")))
+  return(file.exists(PP2A.B56.SLiMs:::meme$getBin("fimo")))
 }
 
 
@@ -208,7 +208,7 @@ meme$fimo<-function(
   fxn <- meme$fimoFasta
   if (use_internal) {
       message("Using internal meme")
-      fxn <- itcpredictr:::fimoF
+      fxn <- PP2A.B56.SLiMs:::fimoF
   }
 
 

@@ -183,7 +183,7 @@ server <- function(input, output) {
             vroom::vroom_write(RV$data, file)
         }
     )
-    output$have_meme <- renderText(paste0("have fimo (meme):", itcpredictr:::have_ext_fimo()))
+    output$have_meme <- renderText(paste0("have fimo (meme):", PP2A.B56.SLiMs:::have_ext_fimo()))
 
 }
 
