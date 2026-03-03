@@ -16,7 +16,7 @@
 #
 
 
-devtools::install_github("cisrlab/PP2A.B56.SLiMs@fimo")
+devtools::install_github("cisrlab/PP2A.B56.SLiMs@fimo-5.5.6")
 
 rsconnect::deployApp( appDir  = './',
                       appName = 'itc_predict',

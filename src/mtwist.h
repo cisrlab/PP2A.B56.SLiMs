@@ -413,6 +413,10 @@ extern double		mt_64_to_double;
 #endif /* __INTEL_COMPILER || _MSC_VER */
 #endif /* MT_GENERATE_CODE_IN_HEADER */
 
+#ifdef R_NO_REMAP
+#define MT_GENERATE_CODE_IN_HEADER 0  // R compiler messes up somehow
+#endif
+
 #if MT_GENERATE_CODE_IN_HEADER
 /*
  * Generate a random number in the range 0 to 2^32-1, inclusive, working
