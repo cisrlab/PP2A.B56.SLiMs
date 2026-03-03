@@ -1,24 +1,7 @@
-/*
- * $Id$
- * 
- * $Log$
- * Revision 1.2  2006/03/08 20:50:11  nadya
- * merge chamges from v3_5_2 branch
- *
- * Revision 1.1.1.1.4.1  2006/01/26 09:16:27  tbailey
- * Rename local function getline() to getline2() to avoid conflict with
- * function defined in stdio.h.
- *
- * Revision 1.1.1.1  2005/07/29 00:21:03  nadya
- * Importing from meme-3.0.14, and adding configure/make
- *
- */
-
 #include "io.h"
 #include "macros.h"
 #include <sys/stat.h>
 #include <errno.h>
-
 
 /******************************************************************************/
 /*
@@ -59,22 +42,22 @@ char *getline2(
 /**********************************************************************/
 int create_output_directory(
   char *output_dirname,	/* Name of the output directory to create */
-  BOOLEAN_T clobber,	/* Whether or not to overwrite an existing dir */
-  BOOLEAN_T warn	/* Print warning/informative messages to stderr? */
+  bool clobber,	/* Whether or not to overwrite an existing dir */
+  bool warn	/* Print warning/informative messages to stderr? */
 ) 
 {
 
   int result = -1;
-  BOOLEAN_T path_is_directory = FALSE;
-  BOOLEAN_T path_exists = FALSE;
+  bool path_is_directory = false;
+  bool path_exists = false;
   struct stat stat_buffer;
 
   // Does the output directory alredy exist?
   if (stat(output_dirname, &stat_buffer)) {
     if (errno == ENOENT) {
       // stat failed because the path doesn't exist.
-      path_exists = FALSE;
-      path_is_directory = FALSE;
+      path_exists = false;
+      path_is_directory = false;
     }
     else {
       // stat failed for some other reason
@@ -88,7 +71,7 @@ int create_output_directory(
     }
   }
   else {
-    path_exists = TRUE;
+    path_exists = true;
     path_is_directory = S_ISDIR(stat_buffer.st_mode);
   }
 
@@ -148,3 +131,26 @@ int create_output_directory(
   }
   return result;
 } // create_output_directory
+
+/*************************************************************************
+ * Output a log value in scientific notation to the given
+ * file pointer, or return a string (that must be freed by caller).
+ *************************************************************************/
+char *print_log_value(FILE *file, double loge_val, int prec) {
+  double log10_val = loge_val / log(10);
+  int e = floor(log10_val);
+  double m = pow(10.0, (log10_val - e));
+  if ((m + (0.5 * pow(10, -prec))) >= 10) {
+    m = 1;
+    e += 1;
+  }
+  if (m == 0) e = 0;		// handle zero
+  if (file == NULL) {
+    char *str = NULL; Resize(str, 100, char);
+    snprintf(str, 100, "%.*fe%d", prec, m, e);
+    return(str);
+  } else {
+    fprintf(file, "%.*fe%d", prec, m, e);
+    return(NULL);
+  }
+} // print_log_value

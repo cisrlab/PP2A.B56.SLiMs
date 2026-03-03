@@ -16,6 +16,7 @@ struct motif_t {
   int idx; // The motif loading index.
   char id[MAX_MOTIF_ID_LENGTH+2]; // The motif ID. First character is strand [+-?]
   char id2[MAX_MOTIF_ID_LENGTH+1]; // The motif secondary ID (for Tomtom).
+  char *consensus;    // Single letter consensus computed from PSSM.
   int length;         // The length of the motif.
   ALPH_T* alph;       // The alphabet of the motif.
   int flags;          // A bitfield of flags

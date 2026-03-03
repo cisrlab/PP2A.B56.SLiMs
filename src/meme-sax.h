@@ -19,7 +19,7 @@ struct meme_io_xml_callbacks {
   void (*start_meme)(void *, int, int, int, char *); //major version, minor version, patch version, release date
   void (*end_meme)(void *);
   //start meme
-  void (*start_training_set)(void *, char *, int); // datafile, length
+  void (*start_training_set)(void *, char *, int, int); // datafile, length, positions
   void (*end_training_set)(void *);
   //start training_set
   void (*start_alphabet)(void *, MEME_IO_XML_ALPH_T, char *, int); // alphabet type, name, extends flag
@@ -53,10 +53,11 @@ struct meme_io_xml_callbacks {
   void (*handle_nmotifs)(void *, int); //nmotifs
   void (*handle_evalue_threshold)(void *, double); //evalue threshold (in log base 10)
   void (*handle_object_function)(void *, char *); // object function - TODO investigate
-  void (*handle_use_llr)(void *, bool); // use_llr
+  void (*handle_spfun)(void *, char *); // starting point function
   void (*handle_min_width)(void *, int); // min width of motifs
   void (*handle_max_width)(void *, int); // max width of motifs
   void (*handle_minic)(void *, double); // min information content of motifs
+  void (*handle_use_llr)(void *, int); // use_llr
   void (*handle_wg)(void *, double); // wg - TODO investigate (guessing some kind of weight?)
   void (*handle_ws)(void *, double); // ws - TODO investigate (guessing some kind of weight?)
   void (*handle_endgaps)(void *, int); //allow gaps on end (boolean) 
@@ -75,11 +76,18 @@ struct meme_io_xml_callbacks {
   void (*handle_num_positions)(void *, int); // num positions TODO
   void (*handle_seed)(void *, long); // seed
   void (*handle_seqfrac)(void *, double); //seqfrac TODO
-  void (*handle_ctfrac)(void *, double); //ctfrac TODO
+  void (*handle_hsfrac)(void *, double); //hsfrac TODO
   void (*handle_maxwords)(void *, double); //maxwords TODO
+  void (*handle_searchsize)(void *, double); //searchsize TODO
+  void (*handle_maxsize)(void *, double); //maxsize TODO
+  void (*handle_norand)(void *, char *); //norand TODO
+  void (*handle_csites)(void *, double); //csites TODO
   void (*handle_strands)(void *, int); // strands 0 = NA, 1 = Forward strand only, 2 = Both strands
+  void (*handle_brief)(void *, int); // brief 0 = normal output, 1 = suppress output of large tables
+  void (*handle_psp_file)(void *, char *); // PSP file
   void (*handle_priors_file)(void *, char *); // priors file
   void (*handle_reason_for_stopping)(void *, char *); // reason for stopping
+  void (*handle_back_order)(void *, int); // Markov background model order
   void (*start_background_frequencies)(void *, char *); // source of data
   void (*end_background_frequencies)(void *);
   //start background frequencies
@@ -93,8 +101,8 @@ struct meme_io_xml_callbacks {
   void (*start_motifs)(void *);
   void (*end_motifs)(void *);
   //start motifs
-  void (*start_motif)(void *, char *, char *, int, double, double, //id, name, width, sites, llr
-      double, double, double, double, double, char *); //ic, re TODO, bayes_threshold, e_value (in log10), elpased_time, url
+  void (*start_motif)(void *, char *, char *, char *, int, double, double, //ctx, id, name, alt, width, sites, llr
+      double, double, double, double, double, char *); //ic, re, bayes_threshold, e_value (in log10), elpased_time, url
   void (*end_motif)(void *);
   //start motif
   void (*start_scores)(void *);

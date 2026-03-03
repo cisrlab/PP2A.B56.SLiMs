@@ -15,9 +15,21 @@
 #include "motif.h"
 #include "motif-spec.h"
 #include "motif-in.h"
+#include "user.h"
 
 // same default site count as Tomtom's website
 #define DEFAULT_SITE_COUNT 20
+
+/**************************************************************************
+ * Holds a probability for an alphabet index. This is useful because a 
+ * list of these can be sorted largest to smallest and the indexes can be
+ * extracted.
+ **************************************************************************/
+typedef struct alph_prob {
+  uint8_t idx;
+  double prob;
+} AP_T;
+
 
 /**************************************************************************
  * Create a number in the range 0 to n (inclusive).
@@ -60,6 +72,7 @@ MOTIF_T* allocate_motif(
   set_motif_strand('+', motif);
   set_motif_id(id, strlen(id), motif);
   set_motif_id2(id2, strlen(id2), motif);
+  //motif->consensus = NULL;
   motif->length = freqs ? get_num_rows(freqs) : get_num_rows(scores);
   motif->alph = alph_hold(alph);
   motif->flags = 0;
@@ -72,6 +85,12 @@ MOTIF_T* allocate_motif(
   motif->url = NULL;
   motif->trim_left = 0;
   motif->trim_right = 0;
+
+  // Compute a single-letter consensus for the motif. 
+  STR_T *cons_buf = str_create(MAXSITE);
+  str_clear(cons_buf);
+  motif2consensus(motif, cons_buf, true);
+  motif->consensus = str_destroy(cons_buf, true);
 
   return motif;
 }
@@ -136,31 +155,8 @@ bool test_motif_mark
 }
 
 /***********************************************************************
- * Get the index of the motif in the file. The first motif is indexed 1.
+ * Set the identifier of a motif.
  ***********************************************************************/
-int get_motif_idx
-  (MOTIF_T* motif)
-{
-  return motif->idx;
-}
-
-/***********************************************************************
- * Get or set the identifier of a motif.
- ***********************************************************************/
-char* get_motif_id
-  (MOTIF_T* motif)
-{
-  return motif->id + 1; // without strand indicator
-}
-
-char* get_motif_st_id
-  (MOTIF_T* motif) 
-{
-  // skip strand indicator for alphabets that don't have a complement
-  if (!alph_has_complement(motif->alph)) return motif->id+1;
-  return motif->id; // with strand indicator
-}
-
 void set_motif_id
   (const char* id,
    int len,
@@ -171,12 +167,6 @@ void set_motif_id
   len = (len < MAX_MOTIF_ID_LENGTH ? len : MAX_MOTIF_ID_LENGTH);
   strncpy(motif->id+1, id, len);
   motif->id[len+1] = '\0'; // ensure null termination
-}
-
-char* get_motif_id2
-  (MOTIF_T* motif)
-{
-  return motif->id2;
 }
 
 void set_motif_id2
@@ -190,7 +180,7 @@ void set_motif_id2
 }
 
 /***********************************************************************
- * Get or set the strand of a motif.
+ * Set the strand of a motif.
  ***********************************************************************/
 void set_motif_strand
   (char strand,
@@ -198,136 +188,6 @@ void set_motif_strand
 {
   assert(strand == '?' || strand == '-' || strand == '+');
   motif->id[0] = strand;
-}
-
-char get_motif_strand
-  (MOTIF_T *motif)
-{
-  return motif->id[0];
-}
-
-/***********************************************************************
- * Set the number of sites of a motif.
- ***********************************************************************/
-void set_motif_nsites
-  (MOTIF_T* motif, int num_sites)
-{
-  motif->num_sites = num_sites;
-}
-
-/***********************************************************************
- * Get the frequencies
- ***********************************************************************/
-MATRIX_T* get_motif_freqs(MOTIF_T* motif){
-  return motif->freqs;
-}
-
-/***********************************************************************
- * Get the scores
- ***********************************************************************/
-MATRIX_T* get_motif_scores(MOTIF_T* motif){
-  return motif->scores;
-}
-
-/***********************************************************************
- * Get the E-value of a motif.
- ***********************************************************************/
-double get_motif_evalue
-  (MOTIF_T* motif)
-{
-  return motif->evalue;
-}
-
-/***********************************************************************
- * Get the log (base 10) E-value of a motif.
- ***********************************************************************/
-double get_motif_log_evalue
-  (MOTIF_T* motif)
-{
-  return motif->log_evalue;
-}
-
-/***********************************************************************
- * Get the complexity of a motif.
- ***********************************************************************/
-double get_motif_complexity
-  (MOTIF_T *motif)
-{
-  return motif->complexity;
-}
-
-/***********************************************************************
- * Get the number of sites of a motif.
- ***********************************************************************/
-double get_motif_nsites
-  (MOTIF_T* motif)
-{
-  return motif->num_sites;
-}
-
-/***********************************************************************
- * Get the motif length
- ***********************************************************************/
-int get_motif_length
-  (const MOTIF_T* motif) 
-{
-  return motif->length;
-}
-
-/***********************************************************************
- * Get the motif alphabet
- ***********************************************************************/
-ALPH_T* get_motif_alph
-  (MOTIF_T* motif) 
-{
-  return motif->alph;
-}
-
-/***********************************************************************
- * Get the motif strands
- * TRUE if the motif was created looking at both strands
- ***********************************************************************/
-BOOLEAN_T get_motif_strands
-  (MOTIF_T *motif)
-{
-  return ((motif->flags & MOTIF_BOTH_STRANDS) != 0);
-}
-
-/***********************************************************************
- * Get the motif length after trimming
- ***********************************************************************/
-int get_motif_trimmed_length
-  (MOTIF_T* motif)
-{
-  return motif->length - motif->trim_left - motif->trim_right;
-}
-
-/***********************************************************************
- * Get the motif alphabet size (non-ambiguous letters)
- ***********************************************************************/
-int get_motif_alph_size
-  (MOTIF_T* motif) 
-{
-  return alph_size_core(motif->alph);
-}
-
-
-/***********************************************************************
- * Get the motif ambiguous alphabet size (only ambiguous letters)
- ***********************************************************************/
-int get_motif_ambiguous_size
-  (MOTIF_T* motif)
-{
-  return (motif->flags & MOTIF_HAS_AMBIGS ? alph_size_ambig(motif->alph) : 0);
-}
-
-/***********************************************************************
- * Get the position specific score for a letter
- ***********************************************************************/
-double get_motif_score
-  (MOTIF_T* motif, int position, int i_alph)
-{
-  return get_matrix_cell(position, i_alph, motif->scores);
 }
 
 /***********************************************************************
@@ -352,15 +212,6 @@ ARRAY_T* get_motif_counts
 }
 
 /***********************************************************************
- * Get the url of a motif
- ***********************************************************************/
-char* get_motif_url
-  (MOTIF_T *motif)
-{
-  return motif->url;
-}
-
-/***********************************************************************
  * Set the url of a motif
  ***********************************************************************/
 void set_motif_url
@@ -375,35 +226,6 @@ void set_motif_url
 }
 
 /***********************************************************************
- * Check if the motif has a URL
- ***********************************************************************/
-BOOLEAN_T has_motif_url
-  (MOTIF_T *motif)
-{
-  if (!motif->url) return FALSE;
-  if (motif->url[0] == '\0') return FALSE;
-  return TRUE;
-}
-
-/***********************************************************************
- * Get the number of positions to trim from the left of the motif
- ***********************************************************************/
-int get_motif_trim_left
-  (MOTIF_T *motif)
-{
-  return motif->trim_left;
-}
-
-/***********************************************************************
- * Get the number of positions to trim from the right of the motif
- ***********************************************************************/
-int get_motif_trim_right
-  (MOTIF_T *motif)
-{
-  return motif->trim_right;
-}
-
-/***********************************************************************
  * Clear the motif trim
  ***********************************************************************/
 void clear_motif_trim
@@ -415,7 +237,7 @@ void clear_motif_trim
 
 /***********************************************************************
  * Check the motif to see it it has any probabilities that are zero.
- * Some algorithms can not handle motifs with probabilities that are zero.
+ * Some algorithms cannot handle motifs with probabilities that are zero.
  ***********************************************************************/
 bool has_motif_zeros
   (MOTIF_T *motif)
@@ -435,7 +257,7 @@ bool has_motif_zeros
 /***********************************************************************
  * Determine whether a given motif is in a given list of motifs.
  ***********************************************************************/
-BOOLEAN_T have_motif
+bool have_motif
   (char*    motif_id,
    int      num_motifs,
    MOTIF_T* motifs)
@@ -444,11 +266,11 @@ BOOLEAN_T have_motif
 
   for (i_motif = 0; i_motif < num_motifs; i_motif++) {
     if (strcmp(motifs[i_motif].id, motif_id) == 0) {
-      return(TRUE);
+      return(true);
     }
   }
   
-  return(FALSE);
+  return(false);
 
 }
 
@@ -461,8 +283,10 @@ void copy_motif
 {
   int size;
   memset(dest, 0, sizeof(MOTIF_T));
+  dest->idx = source->idx;
   strcpy(dest->id, source->id);
   strcpy(dest->id2, source->id2);
+  if (source->consensus) dest->consensus = strdup(source->consensus);
   dest->length = source->length;
   dest->alph = alph_hold(source->alph);
   dest->flags = source->flags;
@@ -470,12 +294,10 @@ void copy_motif
   dest->log_evalue = source->log_evalue;
   dest->num_sites = source->num_sites;
   dest->complexity = source->complexity;
-  dest->trim_left = source->trim_left;
-  dest->trim_right = source->trim_right;
   if (source->freqs) {
     size = (dest->flags & MOTIF_HAS_AMBIGS ?
-        alph_size_full(dest->alph) : 
-        alph_size_core(dest->alph));
+      alph_size_full(dest->alph) : 
+      alph_size_core(dest->alph));
     // Allocate memory for the matrix.
     dest->freqs = allocate_matrix(dest->length, size);
     // Copy the matrix.
@@ -496,16 +318,23 @@ void copy_motif
     dest->url = NULL;
   }
   copy_string(&(dest->url), source->url);
+  dest->trim_left = source->trim_left;
+  dest->trim_right = source->trim_right;
 }
 
 /***********************************************************************
- * Allocates a new matrix with the columns rearranged to suite the target
+ * Allocates a new matrix with the columns rearranged to suit the target
  * alphabet. Any missing columns are filled in with the specified value.
  *
  * Note that the target alphabet must have all the primary core symbols
  * of the source alphabet defined as a core symbol.
  ***********************************************************************/
-MATRIX_T* convert_matrix_alphabet(MATRIX_T *in, MTYPE value, ALPH_T *source_alph, ALPH_T *target_alph) {
+MATRIX_T* convert_matrix_alphabet(
+  MATRIX_T *in, 
+  MTYPE value, 
+  ALPH_T *source_alph, 
+  ALPH_T *target_alph
+) {
   MATRIX_T *out;
   int i_col_from, i_col_to, num_rows, i_row;
   uint32_t bitset[4] = {0, 0, 0, 0};
@@ -518,7 +347,7 @@ MATRIX_T* convert_matrix_alphabet(MATRIX_T *in, MTYPE value, ALPH_T *source_alph
     // find the new index
     i_col_to = alph_indexc(target_alph, alph_char(source_alph, i_col_from));
     if (i_col_to < 0) {
-      die("Failed to promote matrix from %s to %s because %c is missing.",
+      die("Failed to promote matrix from '%s' to '%s' because %c is missing.",
           alph_name(source_alph), alph_name(target_alph),
           alph_char(source_alph, i_col_from));
       return NULL; // placate compiler
@@ -528,7 +357,7 @@ MATRIX_T* convert_matrix_alphabet(MATRIX_T *in, MTYPE value, ALPH_T *source_alph
     }
     // track which columns we've used
     if ((bitset[i_col_to / 32] & (1 << (i_col_to % 32))) != 0) {
-      die("Failed to promote matrix from %s to %s because %c is becomes the "
+      die("Failed to promote matrix from '%s' to '%s' because %c becomes the "
           "same column as another core symbol.",
           alph_name(source_alph), alph_name(target_alph),
           alph_char(source_alph, i_col_from));
@@ -540,8 +369,13 @@ MATRIX_T* convert_matrix_alphabet(MATRIX_T *in, MTYPE value, ALPH_T *source_alph
       set_matrix_cell(i_row, i_col_to, get_matrix_cell(i_row, i_col_from, in), out);
     }
   }
+  // Normalize the matrix to ensure it is a valid frequency matrix.
+  int target_asize = alph_size_core(target_alph);
+  for (i_row = 0; i_row < num_rows; i_row++) {
+    normalize_subarray(0, target_asize, 0.0, get_matrix_row(i_row, out));
+  }
   return out;
-}
+} // convert_matrix_alphabet
 
 /***********************************************************************
  * Shuffle the positions of the motif
@@ -615,6 +449,8 @@ MATRIX_T* convert_freqs_into_scores
       freq = ((pseudo_count * bg_freq) + (freq * site_count)) / total_count;
       // if the background is correct this shouldn't happen
       if (freq <= 0) freq = 0.0000005;
+      // the user might provide a background or motif file with 0 bg freqs
+      if (bg_freq <= 0) bg_freq = 0.0000005;
       // convert to a score
       score = (log(freq / bg_freq) / log(2)) * 100;
       set_matrix_cell(row, col, score, scores);
@@ -676,7 +512,7 @@ MATRIX_T* convert_scores_into_freqs
   }
 
   return freqs;
-}
+} // convert_scores_into_freqs
 
 /***********************************************************************
  * Turn a given motif into its own reverse complement.
@@ -722,9 +558,11 @@ void reverse_complement_motif
 /***********************************************************************
  * Apply a pseudocount to the motif pspm.
  ***********************************************************************/
-void apply_pseudocount_to_motif
-  (MOTIF_T* motif, ARRAY_T *background, double pseudocount)
-{
+void apply_pseudocount_to_motif(
+  MOTIF_T* motif, 
+  ARRAY_T *background, 
+  double pseudocount
+) {
   int pos, letter, len, asize, sites;
   double prob, count, total;
   ARRAY_T *temp;
@@ -753,7 +591,7 @@ void apply_pseudocount_to_motif
     }
     if (motif->flags & MOTIF_HAS_AMBIGS) {
       // recalculate ambiguous symbol values
-      calc_ambigs(motif->alph, FALSE, get_matrix_row(pos, motif->freqs));
+      calc_ambigs(motif->alph, false, get_matrix_row(pos, motif->freqs));
     }
   }
   if (temp) free_array(temp);
@@ -769,16 +607,17 @@ void calc_motif_ambigs
   resize_matrix(motif->length, alph_size_full(motif->alph), 0, motif->freqs);
   motif->flags |= MOTIF_HAS_AMBIGS;
   for (i_row = 0; i_row < motif->length; ++i_row) {
-    calc_ambigs(motif->alph, FALSE, get_matrix_row(i_row, motif->freqs));
+    calc_ambigs(motif->alph, false, get_matrix_row(i_row, motif->freqs));
   }
 }
 
 /***********************************************************************
  * Normalize the motif's pspm
  ***********************************************************************/
-void normalize_motif
-  (MOTIF_T *motif, double tolerance)
-{
+void normalize_motif(
+  MOTIF_T *motif, 
+  double tolerance
+) {
   int i_row, asize;
   asize = alph_size_core(motif->alph);
   for (i_row = 0; i_row < motif->length; ++i_row) {
@@ -873,7 +712,7 @@ double compute_motif_complexity
  *
  ***********************************************************************/
 int get_info_content_position
-  (BOOLEAN_T from_start, // Count from start?  Otherwise, count from end.
+  (bool from_start, // Count from start?  Otherwise, count from end.
    float     threshold,  // Information content threshold (in 0-100).
    ARRAY_T*  background, // Background distribution.
    MOTIF_T*  a_motif)
@@ -1028,12 +867,14 @@ void free_motif
   if (a_motif == NULL) 
     return;
 
-  // Reset all memeber values
+  // Free dynamic members.
+  myfree(a_motif->consensus);
+  alph_release(a_motif->alph); 	// release the alphabet
   free_matrix(a_motif->freqs);
   free_matrix(a_motif->scores);
-  if (a_motif->url) free(a_motif->url);
-  // release the alphabet
-  alph_release(a_motif->alph);
+  myfree(a_motif->url);
+
+  // Reset all member values.
   memset(a_motif, 0, sizeof(MOTIF_T));
 }
 
@@ -1156,13 +997,13 @@ void dump_motif_freqs(FILE *out, MOTIF_T* m){
   freqs = get_motif_freqs(m);
   fprintf(out, "%s", get_motif_st_id(m));
   for (i = 0; i < alph_size_core(alph); i++) {
-    fprintf(out, "\t%c", alph_char(alph, i));
+    fprintf(out, "\t\t%c", alph_char(alph, i));
   }
   fprintf(out, "\n");
   for (i = 0; i < get_num_rows(freqs); i++) {
     fprintf(out, "%s", get_motif_st_id(m));
     for (j = 0; j < alph_size_core(alph); j++) {
-      fprintf(out, "\t%.4f", get_matrix_cell(i, j, freqs));
+      fprintf(out, "\t%.8f", get_matrix_cell(i, j, freqs));
     }
     fprintf(out, "\n");
   }
@@ -1171,7 +1012,7 @@ void dump_motif_freqs(FILE *out, MOTIF_T* m){
 /***********************************************************************
  *
  * Check that all alphabets are the same or convertible in a set of
- * motif files
+ * motif files.
  *
  ***********************************************************************/
 void read_motif_alphabets(ARRAYLST_T* motif_sources, bool xalph, ALPH_T** alph) {
@@ -1181,7 +1022,7 @@ void read_motif_alphabets(ARRAYLST_T* motif_sources, bool xalph, ALPH_T** alph) 
   for (i = 0; i < arraylst_size(motif_sources); i++) {
     char* db_source = (char*) arraylst_get(i, motif_sources);
     // open the motif file for reading
-    MREAD_T *mread = mread_create(db_source, OPEN_MFILE);
+    MREAD_T *mread = mread_create(db_source, OPEN_MFILE, false);
     // get the alphabet from the motif file
     if (mread_has_motif(mread)) {
       db_alph = mread_get_alphabet(mread);
@@ -1190,23 +1031,23 @@ void read_motif_alphabets(ARRAYLST_T* motif_sources, bool xalph, ALPH_T** alph) 
           if (xalph) {
             switch(alph_core_subset(db_alph, *alph)) {
               case 0:
-                die("The motifs in \"%s\" have the %s alphabet which is not "
-                    "a subset of the %s alphabet.", db_source, 
-                    alph_name(db_alph), alph_name(*alph));
+                die("The motifs in '%s' are in the '%s' alphabet which is not "
+		  "a subset of the %s alphabet.", db_source, 
+		  alph_name(db_alph), alph_name(*alph));
                 break;
               case -1:
-                fprintf(stderr, "Warning: the alphabet expansion from %s to %s"
-                    " requires changing complementing rules.", 
-                    alph_name(db_alph), alph_name(*alph));
+                fprintf(stderr, "Warning: the alphabet expansion from '%s' to '%s'"
+		  " requires changing complementation rules.\n", 
+		  alph_name(db_alph), alph_name(*alph));
                 break;
             }
             // since we're not applying pseudocounts the background doesn't matter
             // so we use the uniform background
             mread_set_conversion(mread, *alph, NULL);
           } else {
-            die("The motifs in \"%s\" have the %s alphabet which is not "
-                "the same as the expected %s alphabet.", db_source, 
-                alph_name(db_alph), alph_name(*alph));
+            die("The motifs in '%s' are in the '%s' alphabet which is not "
+	      "the same as the expected '%s' alphabet.", db_source, 
+	      alph_name(db_alph), alph_name(*alph));
           }
         }
       } else {
@@ -1220,3 +1061,97 @@ void read_motif_alphabets(ARRAYLST_T* motif_sources, bool xalph, ALPH_T** alph) 
     die("No alphabet found in motif file(s).\n");
   }
 } // read_motif_alphabets
+
+/**************************************************************************
+ * Compares two AP_T and orders largest probability to smallest probability.
+ **************************************************************************/
+int ap_cmp(const void *p1, const void *p2) {
+  AP_T *a1, *a2;
+  a1 = (AP_T*)p1;
+  a2 = (AP_T*)p2;
+  if (a1->prob == a2->prob) {
+    return (a1->idx > a2->idx) - (a1->idx < a2->idx);
+  }
+  return (a1->prob < a2->prob ? 1 : -1);
+}
+
+/**************************************************************************
+ * Compares two uint8_t and orders smallest to largest.
+ **************************************************************************/
+int idx_cmp(const void *p1, const void *p2) {
+  return (*((uint8_t*)p1) > *((uint8_t*)p2)) - (*((uint8_t*)p1) < *((uint8_t*)p2));
+}
+
+/**************************************************************************
+ * Attempts to make a reasonable consensus representation of a motif.
+ **************************************************************************/
+void motif2consensus(MOTIF_T* motif, STR_T* consensus, bool single_letter) {
+  MATRIX_T *freqs;
+  ARRAY_T *row;
+  AP_T *labeled_row;
+  uint8_t *idx_row;
+  ALPH_T *alph;
+  int i, j, k, ncomprise;
+  bool match;
+  alph = get_motif_alph(motif);
+  labeled_row = mm_malloc(sizeof(AP_T) * alph_size_core(alph));
+  idx_row = mm_malloc(sizeof(uint8_t) * alph_size_core(alph));
+  freqs = get_motif_freqs(motif);
+  for (i = 0; i < get_motif_length(motif); i++) {
+    row = get_matrix_row(i, freqs);
+    // create a sortable row where we can recover the labels
+    for (j = 0; j < alph_size_core(alph); j++) {
+      labeled_row[j].idx = j;
+      labeled_row[j].prob = get_array_item(j, row);
+    }
+    // sort the row by the frequency, largest to smallest
+    qsort(labeled_row, alph_size_core(alph), sizeof(AP_T), ap_cmp);
+    // pick any symbols within 0.5 of the best
+    idx_row[0] = labeled_row[0].idx;
+    for (ncomprise = 1; ncomprise < alph_size_core(alph); ncomprise++) {
+      if (labeled_row[ncomprise].prob < (labeled_row[0].prob * 0.5)) break;
+      idx_row[ncomprise] = labeled_row[ncomprise].idx;
+    }
+    // if nothing else is anywhere near as good as the best one print it
+    if (ncomprise == 1) {
+      str_appendf(consensus, "%c", alph_char(alph, labeled_row[0].idx));
+      continue;
+    }
+    // otherwise try to find an ambiguous symbol that exactly matches
+    qsort(idx_row, ncomprise, sizeof(uint8_t), idx_cmp);
+    match = false;
+    for (j = alph_size_core(alph); j < alph_size_full(alph); j++) {
+      if (alph_ncomprise(alph, j) > ncomprise) continue;
+      else if (alph_ncomprise(alph, j) < ncomprise) break;
+      for (k = 0; k < ncomprise; k++) {
+        if (alph_comprise(alph, j, k) != idx_row[k]) break;
+      }
+      if (k == ncomprise) {
+        str_appendf(consensus, "%c", alph_char(alph, j));
+        match = true;
+        break;
+      }
+    }
+    // when we don't find a good match
+    if (!match) {
+      if (ncomprise * 2 > alph_size_core(alph)) {
+        // when there are lots of symbols print the wildcard
+        str_appendf(consensus, "%c", alph_wildcard(alph));
+      } else if (single_letter) {
+        // not too many letters, print the most common one
+        str_appendf(consensus, "%c", alph_char(alph, labeled_row[0].idx));
+      } else {
+        // otherwise print up to 3 of the best matching symbols
+        str_append(consensus, "[", 1);
+        for (j = 0; j < ncomprise; j++) {
+          if (j >= 3) break;
+          str_appendf(consensus, "%c", alph_char(alph, labeled_row[j].idx));
+        }
+        str_append(consensus, "]", 1);
+      }
+    }
+  }
+  free(idx_row);
+  free(labeled_row);
+}
+

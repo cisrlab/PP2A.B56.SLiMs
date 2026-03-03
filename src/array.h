@@ -10,6 +10,7 @@
 #define ARRAY_H
 
 #include <stdio.h>
+#include <stdbool.h>
 #include "utils.h"
 
 /********************************************************************
@@ -132,7 +133,7 @@ void copy_array
 /***********************************************************************
  * Determine whether two arrays are equal, within a given bound.
  ***********************************************************************/
-BOOLEAN_T equal_arrays
+bool equal_arrays
   (ATYPE    close_enough,
    ARRAY_T* array1,
    ARRAY_T* array2);
@@ -195,15 +196,15 @@ ATYPE total_subarray(int start_index, int length, ARRAY_T* array);
 /*************************************************************************
  * Test whether a given array is already sorted.
  *************************************************************************/
-BOOLEAN_T is_sorted
-  (BOOLEAN_T good_score_is_low,
+bool is_sorted
+  (bool good_score_is_low,
    ARRAY_T*  my_array);
 
 /***********************************************************************
  * Sort the elements in an array. 
  ***********************************************************************/
 void sort_array
-  (BOOLEAN_T reverse_sort,
+  (bool reverse_sort,
    ARRAY_T*  array);
 
 /***********************************************************************
@@ -257,7 +258,7 @@ void print_array
   (ARRAY_T*  array,         /* The array to be printed. */
    int       width,         /* Width of each cell. */
    int       precision,     /* Precision of each cell. */
-   BOOLEAN_T eol,           /* Include an EOL char at the end? */
+   bool eol,           /* Include an EOL char at the end? */
    FILE*     outfile);      /* File to which to write. */
 
 /***********************************************************************
@@ -269,7 +270,7 @@ void print_sub_array
    ARRAY_T*  array,         /* The array to be printed. */
    int       width,         /* Width of each cell. */
    int       precision,     /* Precision of each cell. */
-   BOOLEAN_T eol,           /* Include an EOL char at the end? */
+   bool eol,           /* Include an EOL char at the end? */
    FILE*     outfile);      /* File to which to write. */
 
 /***********************************************************************
@@ -366,7 +367,7 @@ void log_normalize
  * Convert a given array to or from logs.
  **************************************************************************/
 void convert_to_from_log_array
-  (BOOLEAN_T to_log,
+  (bool to_log,
    ARRAY_T*  source_array,
    ARRAY_T*  target_array);
 

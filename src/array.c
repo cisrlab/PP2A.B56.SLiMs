@@ -14,7 +14,6 @@
 #include <string.h>
 #include "array.h"
 
-
 /***********************************************************************
  * Allocate one array.
  ***********************************************************************/
@@ -59,7 +58,7 @@ ARRAY_T* resize_init_array
 
   if (array == NULL) {
     new_array = allocate_array(num_items);
-    init_array(default_value, array);
+    init_array(default_value, new_array);
   } else {
     mm_resize(array->items, num_items, ATYPE);
     for (i = array->num_items; i < num_items; i++) array->items[i] = default_value;
@@ -153,8 +152,8 @@ static void array_bounds_check
 /***********************************************************************
  * Check to be sure that two arrays have the same length.
  ***********************************************************************/
-static BOOLEAN_T check_array_dimensions
-  (BOOLEAN_T die_on_mismatch,
+static bool check_array_dimensions
+  (bool die_on_mismatch,
    const ARRAY_T*  array1,
    const ARRAY_T*  array2)
 {
@@ -164,9 +163,9 @@ static BOOLEAN_T check_array_dimensions
       die("Arrays have differing lengths (%d != %d).\n", 
 	  get_array_length(array1), get_array_length(array2));
     }
-    return(FALSE);
+    return(false);
   }
-  return(TRUE);
+  return(true);
 }
 
 
@@ -336,7 +335,7 @@ void copy_array
 
   check_null_array(source);
   check_null_array(dest);
-  check_array_dimensions(TRUE, source, dest);
+  check_array_dimensions(true, source, dest);
 
   num_items = get_array_length(source);
   if (num_items != 0) {
@@ -347,7 +346,7 @@ void copy_array
 /***********************************************************************
  * Determine whether two arrays are equal, within a given bound.
  ***********************************************************************/
-BOOLEAN_T equal_arrays
+bool equal_arrays
   (ATYPE    close_enough,
    ARRAY_T* array1,
    ARRAY_T* array2)
@@ -359,8 +358,8 @@ BOOLEAN_T equal_arrays
   check_null_array(array2);
 
   /* Verify that the arrays are of the same length. */
-  if (!check_array_dimensions(FALSE, array1, array2)) {
-    return(FALSE);
+  if (!check_array_dimensions(false, array1, array2)) {
+    return(false);
   }
 
   /* Check to be sure that each value is the same. */
@@ -368,11 +367,11 @@ BOOLEAN_T equal_arrays
   for (i_item = 0; i_item < num_items; i_item++) {
     if (!almost_equal(get_array_item(i_item, array1)
 		     - get_array_item(i_item, array2), 0.0, close_enough)) {
-      return(FALSE);
+      return(false);
     }
   }
 
-  return(TRUE);
+  return(true);
 }
 
 /***********************************************************************
@@ -387,7 +386,7 @@ void sum_array
   
   check_null_array(array1);
   check_null_array(array2);
-  check_array_dimensions(TRUE, array1, array2);
+  check_array_dimensions(true, array1, array2);
 
   num_items = get_array_length(array1);
   for (i_item = 0; i_item < num_items; i_item++) {
@@ -407,7 +406,7 @@ void element_product
   
   check_null_array(array1);
   check_null_array(array2);
-  check_array_dimensions(TRUE, array1, array2);
+  check_array_dimensions(true, array1, array2);
 
   num_items = get_array_length(array1);
   for (i_item = 0; i_item < num_items; i_item++) {
@@ -427,7 +426,7 @@ double dot_product
   int num_items;
   double return_value;
   
-  check_array_dimensions(TRUE, array1, array2);
+  check_array_dimensions(true, array1, array2);
 
   num_items = get_array_length(array1);
   return_value = 0.0;
@@ -509,8 +508,8 @@ ATYPE total_subarray(int start_index, int length, ARRAY_T* array) {
 /*************************************************************************
  * Test whether a given array is already sorted.
  *************************************************************************/
-BOOLEAN_T is_sorted
-  (BOOLEAN_T good_score_is_low,
+bool is_sorted
+  (bool good_score_is_low,
    ARRAY_T*  my_array)
 {
   ATYPE prev_value = get_array_item(0, my_array);
@@ -520,16 +519,16 @@ BOOLEAN_T is_sorted
     ATYPE this_value = get_array_item(index, my_array);
     if (good_score_is_low) {
       if (this_value < prev_value) {
-	return(FALSE);
+	return(false);
       }
     } else {
       if (this_value > prev_value) {
-	return(FALSE);
+	return(false);
       }
     }      
     prev_value = this_value;
   }
-  return(TRUE);
+  return(true);
 }
 
 /***********************************************************************
@@ -572,16 +571,10 @@ static int reverse_sort_compare
     return(-1);
   }
   return(0);
-
-  //if (num1 > num2) {
-   // return(-1);
-  //} else if (num1 < num2) {
-   // return(1);
-  //}
 }
 
 void sort_array
-  (BOOLEAN_T reverse_sort,
+  (bool reverse_sort,
    ARRAY_T* array)
 {
   if (reverse_sort) {
@@ -643,7 +636,7 @@ ATYPE sum_of_square_diffs
   
   check_null_array(array1);
   check_null_array(array2);
-  check_array_dimensions(TRUE, array1, array2);
+  check_array_dimensions(true, array1, array2);
 
   num_items = get_array_length(array1);
   for (i_item = 0; i_item < num_items; i_item++) {
@@ -675,7 +668,7 @@ ATYPE compute_median
   ATYPE return_value;
 
   /* Sort the array. */
-  sort_array(FALSE, array);
+  sort_array(false, array);
 
   /* If there are an odd number of elements, return the middle one. */
   num_items = get_array_length(array);
@@ -762,7 +755,7 @@ void print_array
   (ARRAY_T*  array,         /* The array to be printed. */
    int       width,         /* Width of each cell. */
    int       precision,     /* Precision of each cell. */
-   BOOLEAN_T eol,           /* Include an EOL char at the end? */
+   bool eol,           /* Include an EOL char at the end? */
    FILE*     outfile)       /* File to which to write. */
 {
   int   i_item;
@@ -791,7 +784,7 @@ void print_sub_array
    ARRAY_T*  array,         /* The array to be printed. */
    int       width,         /* Width of each cell. */
    int       precision,     /* Precision of each cell. */
-   BOOLEAN_T eol,           /* Include an EOL char at the end? */
+   bool eol,           /* Include an EOL char at the end? */
    FILE*     outfile)       /* File to which to write. */
 {
   int   i_item;
@@ -868,7 +861,7 @@ void dot_divide
   
   check_null_array(array1);
   check_null_array(array2);
-  check_array_dimensions(TRUE, array1, array2);
+  check_array_dimensions(true, array1, array2);
 
   num_items = get_array_length(array1);
   for (i_item = 0; i_item < num_items; i_item++) {
@@ -1126,7 +1119,7 @@ void log_normalize
  * Convert a given array to or from logs.
  **************************************************************************/
 void convert_to_from_log_array
-  (BOOLEAN_T to_log,
+  (bool to_log,
    ARRAY_T*  source_array,
    ARRAY_T*  target_array)
 {
@@ -1165,7 +1158,7 @@ void mix_log_arrays
   check_null_array(array2);
 
   /* Verify that the arrays are of the same length. */
-  check_array_dimensions(TRUE, array1, array2);
+  check_array_dimensions(true, array1, array2);
 
   /* Verify that we've got a reasonable mixing parameter. */
   if ((mixing > 1.0) || (mixing < 0.0)) {

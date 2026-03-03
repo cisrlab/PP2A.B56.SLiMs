@@ -14,7 +14,7 @@ typedef enum {FASTA, SWISSPROT} FORMAT_TYPE;
 
 #include "macros.h"
 
-extern BOOLEAN read_sequence(
+extern bool read_sequence(
   ALPH_T *alph,
   FILE *data_file,              /* file containing sequences */
   char **sample_name,           /* unique identifier of sequence */

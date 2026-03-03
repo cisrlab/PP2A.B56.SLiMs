@@ -18,6 +18,11 @@
 #ifndef MESSAGE_H
 #  define MESSAGE_H
 
+#ifdef PARALLEL
+#include <mpi.h>
+  DEXTERN(MPI_Datatype *, REDUCTION_PACKET_TYPE_PTR, NULL);
+#endif
+
 #include "meme.h" /* We need the defn of S_POINT. */
 /***************************************************************************/
 /* Type declarations */
@@ -29,8 +34,9 @@ typedef struct reduction_packet {
   double s_width;			/* starting width */
   double s_nsites;			/* starting nsites */
   double width;				// width of motif
+  double nsites_dis;			// final number of sites
   double llr;				// LLR of motif
-  double classic;			// TRUE if Classic objective function
+  double classic;			// true if Classic objective function
   double ID; /* Use a double so the MPI type handle is simple. */
 } REDUCE_PACKET;
 
@@ -95,7 +101,7 @@ EXTERN SEQ_PARAMS *start_n_end;
 #ifdef PARALLEL
 #define load_balance_llr(nsites, pal) (llr_node((nsites),(pal)) == mpMyID())
 #else
-#define load_balance_llr(nsites, pal) TRUE
+#define load_balance_llr(nsites, pal) true
 #endif
 
 /***************************************************************************/

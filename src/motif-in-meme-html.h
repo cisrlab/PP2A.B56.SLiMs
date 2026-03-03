@@ -15,7 +15,7 @@ short mhtml_has_motif(void *data);
 MOTIF_T* mhtml_next_motif(void *data);
 ALPH_T* mhtml_get_alphabet(void *data);
 int mhtml_get_strands(void *data);
-BOOLEAN_T mhtml_get_bg(void *data, ARRAY_T **bg);
+bool mhtml_get_bg(void *data, ARRAY_T **bg);
 void* mhtml_motif_optional(void *data, int option);
 void* mhtml_file_optional(void *data, int option);
 #endif

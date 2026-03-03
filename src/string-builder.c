@@ -222,7 +222,7 @@ void str_vinsertf(STR_T *strb, int offset, const char *fmt, va_list ap) {
  * Inserts a UTF-8 code unit at the offset to the string builder.
  */
 void str_insert_code(STR_T *strb, int offset, int32_t code_point) {
-  char code_unit[7];
+  char code_unit[31];
   int bytes;
   unicode_to_string(code_point, code_unit, &bytes);
   code_unit[bytes] = '\0';

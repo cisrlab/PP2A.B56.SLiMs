@@ -19,14 +19,19 @@ typedef struct pssm PSSM_T;
 #define scaled_to_raw(x,w,scale,offset) (((x)/(scale)) + ((w)*(offset)))
 #define raw_to_scaled(x,w,scale,offset) (nint(((x) - ((w)*offset)) * (scale)))
 
+//
+// Macros to encapsulate PSSM_T structure
+#define pssm_scaled_to_raw(x, pssm) (scaled_to_raw((x), (pssm)->w, (pssm)->scale, (pssm)->offset))
 #define get_pssm_w(pssm) ((pssm)->w)
 #define get_pssm_alph(pssm) ((pssm)->alph)
 #define get_pssm_alphsize(pssm) ((pssm)->alphsize)
 #define get_pssm_scale(pssm) ((pssm)->scale)
 #define get_pssm_offset(pssm) ((pssm)->offset)
 #define get_pssm_pv_length(pssm) (get_array_length((pssm)->pv))
-#define get_pssm_pv(score, pssm) (get_array_item(score, (pssm)->pv))
+#define get_pssm_pv(score, pssm) (get_array_item((score), (pssm)->pv))
 #define get_pssm_score(row, col, pssm) (get_matrix_cell((row), (col), (pssm)->matrix))
+#define get_pssm_min_pv(pssm) (get_array_item((pssm)->max_score, (pssm)->pv))
+#define get_pssm_max_raw_score(pssm) (pssm_scaled_to_raw((pssm)->max_score, (pssm)))
 
 //
 // PSSM
@@ -39,11 +44,11 @@ typedef struct pssm PSSM_T;
 //
 struct pssm {
   MATRIX_T *matrix;	// The PSSM score matrix.
-  ALPH_T* alph;          // The alphabet of the pssm
+  ALPH_T *alph;		// The alphabet of the pssm
   int alphsize;         // The size of the alphabet after hashing
   int w;		// Width of PSSM.
-  BOOLEAN_T matrix_is_log;	// True if matrix is log likelihood ratio.
-  BOOLEAN_T matrix_is_scaled;	// True if matrix is scaled.
+  bool matrix_is_log;	// True if matrix is log likelihood ratio.
+  bool matrix_is_scaled;	// True if matrix is scaled.
   double scale;		// Scale factor for scores.
   double offset;	// Offset for scores.
   int range;		// Scaled scores in range [0..range].
@@ -52,7 +57,8 @@ struct pssm {
   ARRAY_T **gc_pv;	// P-value tables for different GC contents: [gc_bin, score].
   int min_score;	// Smallest index with non-zero pdf.
   int max_score;	// Largest index with non-zero pdf.
-  MOTIF_T * motif;      // may be NULL but can be useful e.g. for id
+  double nolog_max_score;
+  MOTIF_T *motif;	// may be NULL but can be useful e.g. for id
 };
 
 //
@@ -73,22 +79,21 @@ typedef struct pssm_pair {
 } PSSM_PAIR_T;
 
 void set_up_pssms_and_pvalues (
-  BOOLEAN_T motif_scoring, // Motif scoring?
+  bool motif_scoring, // Motif scoring?
   double p_threshold, // Scale/offset PSSM and create table if > 0
-  BOOLEAN_T use_both_strands, // Compute PSSM for negative strand, too?
-  BOOLEAN_T allow_weak_motifs, // Allow motifs with min p-value < p_threshold?
+  bool use_both_strands, // Compute PSSM for negative strand, too?
+  bool allow_weak_motifs, // Allow motifs with min p-value < p_threshold?
   MHMM_T *the_hmm, // The Hidden Markov Model
   PRIOR_DIST_T *prior_dist, // Distribution of priors
   double alpha // PSP alpha parameter
 );
 
 void compute_motif_score_matrix(
-  BOOLEAN_T use_pvalues, // Returns scores as p-values, not log-odds.
+  bool use_pvalues, // Returns scores as p-values, not log-odds.
   double p_threshold,	// Divide p-values by this.
   int* int_sequence,	// Sequence as integer indices into alphabet.
   size_t seq_length,	// Length of sequence.
   double *priors, // Priors for sequence
-  size_t num_priors, // Number of priors
   double alpha, // Alpha parameter for calculating prior log odds
   MHMM_T*    the_hmm,		// The hmm.
   MATRIX_T** motif_score_matrix
@@ -113,21 +118,21 @@ void scale_pssm(
 
 ARRAY_T *scale_prior_dist(
   ARRAY_T *priors, // Distribution of priors (IN/OUT)
-  int range,			 // The desired range. (IN) 
+  int range,	   // The desired range. (IN) 
   double scale,    // The desired scale. (IN)
   double offset    // The desired offset. (IN)
 );
 
 void get_pv_lookup_pos_dep(
-  PSSM_T* pssm,			           // The PSSM.
-  MATRIX_T* background_matrix, // The background model PSSM matrix.
+  PSSM_T* pssm,			// The PSSM.
+  MATRIX_T* background_matrix,  // The background model PSSM matrix.
   ARRAY_T* scaled_prior_dist    // Scaled distribution of priors.
 );
 
 void get_pv_lookup(
-  PSSM_T* pssm,			         // The PSSM.
-  ARRAY_T* background,       // The background model.
-  ARRAY_T* scaled_prior_dist // Scaled distribution of priors.
+  PSSM_T* pssm,			// The PSSM.
+  ARRAY_T* background, 		// The background model.
+  ARRAY_T* scaled_prior_dist	// Scaled distribution of priors.
 );
 
 double get_unscaled_pssm_score(
@@ -150,7 +155,7 @@ PSSM_T* build_motif_pssm(
   int range,		             // range of scaled scores is [0..w*range]
   int num_gc_bins,	         // create pv tables for this number of GC bins
 			                       // instead of using the pv_bg_freqs
-  BOOLEAN_T no_log  	       // make likelihood ratio pssm
+  bool no_log  	       // make likelihood ratio pssm
 );
 
 PSSM_T* build_matrix_pssm(
@@ -195,6 +200,17 @@ void free_pssm(
  **************************************************************************/
 double pssm_best_match_score(
   PSSM_T* pssm
+);
+
+// Print a PSSM to standard error.
+void print_pssm(
+  PSSM_T* pssm
+);
+
+// Find the unscaled (raw) score corresponding most closely to a given p-value.
+double pssm_pvalue_to_score(
+  PSSM_T *pssm,                 // a pssm
+  double pvalue                 // a p-value
 );
 
 #endif

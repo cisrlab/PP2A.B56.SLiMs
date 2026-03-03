@@ -12,6 +12,7 @@
 #include "alphabet.h"
 #include "array.h"
 #include "utils.h"
+#include "ushuffle.h"
 
 // A sequence object.
 typedef struct seq SEQ_T;
@@ -22,11 +23,12 @@ typedef struct seq SEQ_T;
 /****************************************************************************
  * Allocate one sequence object.
  ****************************************************************************/
-SEQ_T* allocate_seq
-  (char* name,
-   char* description,
-   unsigned int offset,
-   char* sequence);
+SEQ_T* allocate_seq(
+  char* name,
+  char* description,
+  unsigned int offset,
+  char* sequence
+);
 
 /****************************************************************************
  * Get and set various fields.
@@ -75,7 +77,7 @@ char* get_raw_sequence
   (SEQ_T* a_sequence);
 void set_raw_sequence
   (char *raw_sequence,
-   BOOLEAN_T is_complete,
+   bool is_complete,
    SEQ_T* a_sequence);
 int8_t* get_isequence(SEQ_T* a_sequence);
 int* get_int_sequence
@@ -126,9 +128,9 @@ void index_sequence(SEQ_T* seq, ALPH_T* alpha, int options);
  * sequence object corresponds to the end of the actual sequence.
  **************************************************************************/
 void set_complete
-  (BOOLEAN_T is_complete,
+  (bool is_complete,
    SEQ_T* a_sequence);
-BOOLEAN_T is_complete
+bool is_complete
   (SEQ_T* a_sequence);
 
 /***************************************************************************
@@ -147,10 +149,10 @@ void remove_flanking_xs
  * In the integer form, each character in the sequence is replaced by
  * the index of that character in the alphabet. 
  **************************************************************************/
-void prepare_sequence (
-    SEQ_T* sequence, 
-    ALPH_T* alph,
-    BOOLEAN_T hard_mask
+void prepare_sequence(
+  SEQ_T* sequence, 
+  ALPH_T* alph,
+  bool hard_mask
 );
 
 /***************************************************************************
@@ -197,6 +199,15 @@ ARRAY_T* get_sequence_freqs
  * Extract a subsequence string from a seq object.
  ****************************************************************************/
 char* get_raw_subsequence(int start, int stop, SEQ_T* a_sequence);
+
+/****************************************************************************
+ * Shuffle the letters of a sequence.
+ ****************************************************************************/
+SEQ_T *shuffle_seq (
+  SEQ_T* seq,		// a sequence
+  int kmer,		// preserve the frequencies of words of size kmer
+  int i_copy		// a number to add to the new sequence name
+);
 
 /****************************************************************************
  * Free one sequence object.

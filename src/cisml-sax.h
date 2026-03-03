@@ -17,6 +17,7 @@ struct CISML_CALLBACKS {
   void (*start_cis_element_search)(void*);                  // <status>
   void (*handle_program_name)(void*, char*);                // <status> <program name>
   void (*start_parameters)(void*);                          // <status>
+  void (*handle_command_line)(void*, char*);                // <status> <command line>
   void (*handle_pattern_file)(void*, char*);                // <status> <pattern file>
   void (*handle_sequence_file)(void*, char*);               // <status> <sequence file>
   void (*handle_background_seq_file)(void*, char*);         // <status> <background sequence file>

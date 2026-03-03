@@ -60,16 +60,16 @@ static void catch_match_too_long(int len, const char *line, const char *filename
  * This function tests whether the passed in line is a wiggle
  * track line, i.e. it starts with the string 'track'
  ********************************************************************/
-static BOOLEAN_T is_track_line(const char *line) {
+static bool is_track_line(const char *line) {
 
   const char *track_marker = "track";
   const size_t track_marker_size = strlen(track_marker);
 
   if (strncmp(line, track_marker, track_marker_size) == 0) {
-    return TRUE;
+    return true;
   }
   else {
-    return FALSE;
+    return false;
   }
 
 }
@@ -79,7 +79,7 @@ static BOOLEAN_T is_track_line(const char *line) {
  * declaration line, i.e. it starts with the string 'fixedStep'
  * or the string 'variableStep'
  ********************************************************************/
-static BOOLEAN_T is_format_line(const char *line) {
+static bool is_format_line(const char *line) {
 
   const char *fixed_marker = "fixedStep";
   const size_t fixed_marker_size = strlen(fixed_marker);
@@ -87,13 +87,13 @@ static BOOLEAN_T is_format_line(const char *line) {
   const size_t var_marker_size = strlen(var_marker);
 
   if (strncmp(line, fixed_marker, fixed_marker_size) == 0) {
-    return TRUE;
+    return true;
   }
   else if (strncmp(line, var_marker, var_marker_size) == 0) {
-    return TRUE;
+    return true;
   }
   else {
-    return FALSE;
+    return false;
   }
 
 }
@@ -103,16 +103,16 @@ static BOOLEAN_T is_format_line(const char *line) {
  * If a line was read it is passed out in the line parameter.
  * Any IO problems other than EOF will be treated as a fatal error.
  *
- * Returns TRUE if the line was successfully read, FALSE if EOF
+ * Returns true if the line was successfully read, false if EOF
  * is reached.
  ********************************************************************/
-static BOOLEAN_T read_wiggle_line(WIGGLE_READER_T *reader, char **line) {
+static bool read_wiggle_line(WIGGLE_READER_T *reader, char **line) {
 
   errno = 0;
   *line = getline2(reader->wiggle_file);
   if (*line == NULL) {
     if (feof(reader->wiggle_file)) {
-      return FALSE;
+      return false;
     }
     else {
       die(
@@ -123,7 +123,7 @@ static BOOLEAN_T read_wiggle_line(WIGGLE_READER_T *reader, char **line) {
     }
   }
 
-  return TRUE;
+  return true;
 
 }
 
@@ -415,20 +415,20 @@ void reset_wiggle_reader(WIGGLE_READER_T *reader) {
  * Read from the current position in the file to the first format line 
  * containing a new sequence.  Update the value of the current sequence.
  *
- * Returns TRUE if it was able to advance to the next sequence, FALSE if 
+ * Returns true if it was able to advance to the next sequence, false if 
  * EOF reached before the next sequence was found. Dies if other errors
  * encountered.
  *****************************************************************************/
-BOOLEAN_T go_to_next_sequence_in_wiggle(
+bool go_to_next_sequence_in_wiggle(
   WIGGLE_READER_T *reader
 ) {
 
   char *line = NULL;
   char *prev_chrom = NULL;
-  BOOLEAN_T result = FALSE;
+  bool result = false;
 
-  while((result = read_wiggle_line(reader, &line)) == TRUE) {
-    if (is_format_line(line) == TRUE) {
+  while((result = read_wiggle_line(reader, &line)) == true) {
+    if (is_format_line(line) == true) {
       // Parse format lines and move to next line
       if (reader->chrom) {
         prev_chrom = strdup(reader->chrom);
@@ -441,7 +441,7 @@ BOOLEAN_T go_to_next_sequence_in_wiggle(
       }
       if (chrom_match != 0) {
         // We've reached a new sequence
-        result = TRUE;
+        result = true;
         break;
       }
     }
@@ -455,23 +455,23 @@ BOOLEAN_T go_to_next_sequence_in_wiggle(
 /******************************************************************************
  * Reads the next data line from the wiggle file
  * 
- * Returns TRUE if it was able to read the line, FALSE if it reaches
+ * Returns true if it was able to read the line, false if it reaches
  * a new sequence sequence or EOF.  Dies if other errors encountered.
  *****************************************************************************/
-BOOLEAN_T get_next_data_line_from_wiggle(
+bool get_next_data_line_from_wiggle(
   WIGGLE_READER_T *reader,
   char **chrom,
   size_t *start,
   size_t *step,
   size_t *span,
   double *value,
-  BOOLEAN_T *found_format_line
+  bool *found_format_line
 ) {
 
   char *line = NULL;
-  BOOLEAN_T done_looking = FALSE;
-  BOOLEAN_T found_data = FALSE;
-  *found_format_line = FALSE;
+  bool done_looking = false;
+  bool found_data = false;
+  *found_format_line = false;
 
   // Save current reader state
   INPUT_FMT_T prev_format = reader->format;
@@ -486,32 +486,32 @@ BOOLEAN_T get_next_data_line_from_wiggle(
   long save_pos = ftell(reader->wiggle_file);
 
   // Keep trying until we've read a data line or reached a new sequence
-  while (done_looking == FALSE) {
+  while (done_looking == false) {
 
-    BOOLEAN_T read_line = read_wiggle_line(reader, &line);
+    bool read_line = read_wiggle_line(reader, &line);
 
-    if (read_line != TRUE) {
+    if (read_line != true) {
       // We've reached EOF
-      found_data = FALSE;
-      done_looking = TRUE;
+      found_data = false;
+      done_looking = true;
       break;
     }
 
     // A wiggle file line is either a track line, 
     // a format line, or a data line.
 
-    if (is_track_line(line) == TRUE) {
+    if (is_track_line(line) == true) {
       // Skip track lines
       continue;
     }
-    else if (is_format_line(line) == TRUE) {
+    else if (is_format_line(line) == true) {
 
       // A format line may indicate a new sequence
       // or simply be setting the start, span or step.
       // If it's a new sequence we should just back up
-      // and return FALSE since no more data blocs are
+      // and return false since no more data blocs are
       // available for this sequence.
-      *found_format_line = TRUE;
+      *found_format_line = true;
       parse_wiggle_format_line(reader, line);
 
       // Check to see if we've reached a new sequence 
@@ -521,7 +521,7 @@ BOOLEAN_T get_next_data_line_from_wiggle(
       }
 
       if (chrom_match != 0) {
-        // We've reached a new sequence. Back up one and return FALSE
+        // We've reached a new sequence. Back up one and return false
         errno = 0;
         int e = fseek(reader->wiggle_file, save_pos, SEEK_SET);
         if (e) {
@@ -539,8 +539,8 @@ BOOLEAN_T get_next_data_line_from_wiggle(
         reader->span = prev_span;
         myfree(reader->chrom);
         reader->chrom = strdup(prev_chrom);
-        found_data = FALSE;
-        done_looking = TRUE;
+        found_data = false;
+        done_looking = true;
       }
       else {
         // Must be updating the step or span
@@ -563,8 +563,8 @@ BOOLEAN_T get_next_data_line_from_wiggle(
       *step = reader->step;
       *span = reader->span;
       reader->prev_line_position = save_pos;
-      found_data = TRUE;
-      done_looking = TRUE;
+      found_data = true;
+      done_looking = true;
     }
 
     myfree(line);
@@ -579,12 +579,12 @@ BOOLEAN_T get_next_data_line_from_wiggle(
  * Sets the state of the reader to the positon before the last data line was
  * read. Only the immediately previous get_next_data_line() can be undone.
  * 
- * Returns TRUE if it was able to undo the get_next_line(), FALSE otherwise.
+ * Returns true if it was able to undo the get_next_line(), false otherwise.
  * Dies if other errors encountered.
  *****************************************************************************/
-BOOLEAN_T unget_data_line_from_wiggle(WIGGLE_READER_T *reader) {
+bool unget_data_line_from_wiggle(WIGGLE_READER_T *reader) {
 
-  BOOLEAN_T result = FALSE;
+  bool result = false;
 
   if (reader->prev_line_position) {
     errno = 0;
@@ -599,7 +599,7 @@ BOOLEAN_T unget_data_line_from_wiggle(WIGGLE_READER_T *reader) {
     }
     else {
       reader->prev_line_position = 0;
-      result = TRUE;
+      result = true;
     }
   }
 

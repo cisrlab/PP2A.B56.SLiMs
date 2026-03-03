@@ -2,9 +2,11 @@
 #include "fimo.h"
 
 /***********************************************************************
-  Print plain text record for motif site to standard output.
+  Print TSV record for a motif site.
  ***********************************************************************/
-void print_site_as_text(
+void print_site_as_tsv(
+  FILE *tsv_out,
+  bool print_qvalue,
   MATCHED_ELEMENT_T *match,
   SCANNED_SEQUENCE_T *scanned_seq
 );
@@ -32,6 +34,16 @@ void print_fimo_xml_file(
  * This function saves FIMO results as a tab-delimited text file
  *********************************************************************/
 void print_fimo_text_file(FILE *fimo_file, CISML_T *cisml, FIMO_OPTIONS_T options);
+
+/**********************************************************************
+ * This function prints the best site for each motif 
+ * in each sequence as a narrowPeak file.
+ *********************************************************************/
+void print_fimo_best_site_file(
+  FILE *best_site_file,
+  CISML_T *cisml,
+  FIMO_OPTIONS_T options
+);
 
 /**********************************************************************
  * This function saves FIMO results as a tab-delimited text file

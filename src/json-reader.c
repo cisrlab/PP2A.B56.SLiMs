@@ -107,8 +107,8 @@ enum token_type {
   TOK_COLON, // :
   TOK_COMMA, // ,
   TOK_NULL, // null
-  TOK_TRUE, // true
-  TOK_FALSE, // false
+  TOK_true, // true
+  TOK_false, // false
   TOK_NUMBER,
   TOK_STRING
 };
@@ -383,7 +383,7 @@ static inline int process_number_token(JSONRD_T *jsonrd, const char *chunk, size
         }
         break;
       default:
-        die("Illegal state");
+        die("Illegal state in json-reader.");
         return size;
     }
     str_append(jsonrd->buf, chunk+i, 1);
@@ -521,10 +521,10 @@ static inline TT_EN guess_token(char c) {
     case ',':
       return TOK_COMMA;
     case 't':
-      return TOK_TRUE;
+      return TOK_true;
       break;
     case 'f':
-      return TOK_FALSE;
+      return TOK_false;
       break;
     case 'n':
       return TOK_NULL;
@@ -575,9 +575,9 @@ static int next_token(JSONRD_T *jsonrd, const char *chunk, size_t size) {
     jsonrd->token.type = guess_token(chunk[i]);
     jsonrd->token.state = TS_IN_PROGRESS;
     switch (jsonrd->token.type) {
-      case TOK_TRUE:
+      case TOK_true:
         jsonrd->token.value_bool = true;
-      case TOK_FALSE:
+      case TOK_false:
       case TOK_NULL:
         break;
       case TOK_STRING:
@@ -593,11 +593,11 @@ static int next_token(JSONRD_T *jsonrd, const char *chunk, size_t size) {
     }
   }
   // in progress
-  assert(jsonrd->token.state = TS_IN_PROGRESS);
+  assert((jsonrd->token.state = TS_IN_PROGRESS));
   switch (jsonrd->token.type) {
-    case TOK_TRUE:
+    case TOK_true:
       return process_keyword_token(jsonrd, chunk, size, i, "true", 4);
-    case TOK_FALSE:
+    case TOK_false:
       return process_keyword_token(jsonrd, chunk, size, i, "false", 5);
     case TOK_NULL:
       return process_keyword_token(jsonrd, chunk, size, i, "null", 4);
@@ -658,8 +658,8 @@ static void expect_property_value(JSONRD_T *jsonrd) {
         jsonrd->callbacks.atom_number(jsonrd->user_data, jsonrd->token.value_number);
       }
       goto atom_value;
-    case TOK_TRUE:
-    case TOK_FALSE:
+    case TOK_true:
+    case TOK_false:
       if (jsonrd->callbacks.atom_bool) {
         jsonrd->callbacks.atom_bool(jsonrd->user_data, jsonrd->token.value_bool);
       }
@@ -740,8 +740,8 @@ static void expect_value_or_endlst(JSONRD_T *jsonrd) {
         jsonrd->callbacks.atom_number(jsonrd->user_data, jsonrd->token.value_number);
       }
       goto atom_value;
-    case TOK_TRUE:
-    case TOK_FALSE:
+    case TOK_true:
+    case TOK_false:
       if (jsonrd->callbacks.atom_bool) {
         jsonrd->callbacks.atom_bool(jsonrd->user_data, jsonrd->token.value_bool);
       }
@@ -809,8 +809,8 @@ static void expect_list_value(JSONRD_T *jsonrd) {
         jsonrd->callbacks.atom_number(jsonrd->user_data, jsonrd->token.value_number);
       }
       goto atom_value;
-    case TOK_TRUE:
-    case TOK_FALSE:
+    case TOK_true:
+    case TOK_false:
       if (jsonrd->callbacks.atom_bool) {
         jsonrd->callbacks.atom_bool(jsonrd->user_data, jsonrd->token.value_bool);
       }

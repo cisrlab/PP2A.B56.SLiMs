@@ -1,4 +1,3 @@
-
 #ifndef MOTIF_IN_DREME_XML_H
 #define MOTIF_IN_DREME_XML_H
 
@@ -17,7 +16,7 @@ char* dxml_next_error(void *data);
 MOTIF_T* dxml_next_motif(void *data);
 ALPH_T* dxml_get_alphabet(void *data);
 int dxml_get_strands(void *data);
-BOOLEAN_T dxml_get_bg(void *data, ARRAY_T **bg);
+bool dxml_get_bg(void *data, ARRAY_T **bg);
 void* dxml_motif_optional(void *data, int option);
 void* dxml_file_optional(void *data, int option);
 

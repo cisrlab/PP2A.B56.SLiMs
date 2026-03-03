@@ -10,55 +10,103 @@
 const int MAX_HTML_MATCHES = 1000;
 
 /***********************************************************************
-  Print plain text record for motif site to standard output.
+  Print narrowPeak record for a motif site.
  ***********************************************************************/
-void print_site_as_text(
+void print_site_as_narrow_peak(
+  FILE *narrow_peak_file,
   MATCHED_ELEMENT_T *match,
   SCANNED_SEQUENCE_T *scanned_seq
 ) {
 
-  static BOOLEAN_T print_header = TRUE;
+  PATTERN_T *pattern = get_scanned_sequence_parent(scanned_seq);
+  char *seq_name = get_scanned_sequence_name(scanned_seq);
+  int start = get_matched_element_start(match);
+  int stop = get_matched_element_stop(match);
+  if (stop < start) {
+    SWAP(int, start, stop);
+  }
+  char *motif_id = get_pattern_accession(pattern);
+  char strand = get_matched_element_strand(match);
+  double score = get_matched_element_score(match);
+  double pvalue = get_matched_element_pvalue(match);
+  double qvalue = get_matched_element_qvalue(match);
+  int peak = (stop-start)/2;
+  fprintf(
+    narrow_peak_file, 
+    "%s\t%d\t%d\t%s\t%d\t%c\t%g\t%.3g\t%.3g\t%d\n",
+    seq_name,	// chrom
+    start,	// chromStart
+    stop+1,	// chromEnd
+    motif_id,	// name
+    450,	// score
+    strand, 	// strand
+    score,	// signalValue
+    pvalue,	// pValue
+    qvalue,	// qvalue
+    peak	// peak
+  );
+
+} // print_site_as_narrow_peak
+
+/***********************************************************************
+  Print TSV record for a motif site.
+ ***********************************************************************/
+void print_site_as_tsv(
+  FILE *tsv_file,
+  bool print_qvalue,
+  MATCHED_ELEMENT_T *match,
+  SCANNED_SEQUENCE_T *scanned_seq
+) {
+
+  static bool print_header = true;
 
   if (print_header) {
-//    fprintf(
-//      stdout,
-    Rprintf(
-      "#pattern name"
-      "\tsequence name"
+    fprintf(
+      tsv_file, 
+      "motif_id"
+      "\tmotif_alt_id"
+      "\tsequence_name"
       "\tstart"
       "\tstop"
       "\tstrand"
       "\tscore"
       "\tp-value"
       "\tq-value"
-      "\tmatched sequence\n"
+      "\tmatched_sequence\n"
       );
-    print_header = FALSE;
+    print_header = false;
   }
 
   PATTERN_T *pattern = get_scanned_sequence_parent(scanned_seq);
-  char *motif_name = get_pattern_name(pattern);
+  char *motif_id = get_pattern_accession(pattern);
+  char *motif_id2 = get_pattern_name(pattern);
   char *seq_name = get_scanned_sequence_name(scanned_seq);
-  char *seq = get_matched_element_sequence(match);
+  char *seq = (char *) get_matched_element_sequence(match);
   int start = get_matched_element_start(match);
   int stop = get_matched_element_stop(match);
   if (stop < start) {
     SWAP(int, start, stop);
   }
-//  fprintf(
-//    stdout,
-Rprintf(
-    "%s\t%s\t%d\t%d\t%c\t%g\t%.3g\t\t%s\n",
-    motif_name,
+  fprintf(
+    tsv_file, 
+    "%s\t%s\t%s\t%d\t%d\t%c\t%g\t%.3g",
+    motif_id,
+    motif_id2,
     seq_name,
     start,
     stop,
     get_matched_element_strand(match),
     get_matched_element_score(match),
-    get_matched_element_pvalue(match),
-    seq ? seq : ""
+    get_matched_element_pvalue(match)
   );
-}
+  if (print_qvalue) {
+    fprintf(tsv_file, "\t%.3g", get_matched_element_qvalue(match));
+  } else {
+    fprintf(tsv_file, "\t");
+  }
+  fprintf(tsv_file, "\t%s\n", seq ? seq : "");
+
+} // print_site_as_tsv
 
 /***********************************************************************
  * Print FIMO settings information to an XML file
@@ -172,8 +220,8 @@ void print_fimo_xml_file(
   fprintf(out, "<command-line>%s</command-line>\n", options.command_line);
   print_settings_xml(out, options);
   fprintf(
-    out,
-    "<sequence-data num-sequences=\"%d\" num-residues=\"%ld\" />\n",
+    out, 
+    "<sequence-data num-sequences=\"%d\" num-residues=\"%ld\" />\n", 
     num_seqs,
     num_residues
   );
@@ -183,15 +231,17 @@ void print_fimo_xml_file(
   for (i = 0; i < num_motifs; i++) {
     MOTIF_T *motif = arraylst_get(i, motifs);
     char *bare_motif_id = get_motif_id(motif);
+    char *bare_motif_id2 = get_motif_id2(motif);
     char *best_possible_match = get_best_possible_match(motif);
     fprintf(
       out,
-      "<motif name=\"%s\" width=\"%d\" best-possible-match=\"%s\"/>\n",
+      "<motif name=\"%s\" alt=\"%s\" width=\"%d\" best-possible-match=\"%s\"/>\n",
       bare_motif_id,
+      bare_motif_id2,
       get_motif_length(motif),
       best_possible_match
     );
-    if (options.scan_both_strands == TRUE) {
+    if (options.scan_both_strands == true) {
       // Skip RC motif
       ++i;
     }
@@ -200,7 +250,7 @@ void print_fimo_xml_file(
   fprintf(
     out,
     "<background source=\"%s\">\n",
-    options.bg_filename ? options.bg_filename : "non-redundant database"
+    options.bg_filename
   );
   for (i = 0; i < alph_size_core(options.alphabet); i++) {
     fprintf(
@@ -212,7 +262,7 @@ void print_fimo_xml_file(
   }
   fputs("</background>\n", out);
   /*
-   * FIXME CEG
+   * TODO CEG 
    * Use Patterns in cisml to get this information
   int num_incomplete_motifs = get_num_strings(incomplete_motifs);
     if (num_incomplete_motifs > 0) {
@@ -231,18 +281,35 @@ void print_fimo_xml_file(
 }
 
 /**********************************************************************
- * This function saves FIMO results as a tab-delimited text file
+ * This function saves best site for each motif in each sequence 
+ * as an ENCODE narrowPeak file.
  *********************************************************************/
-void print_fimo_text_file(
-  FILE *fimo_file,
-  CISML_T *cisml,
+void print_fimo_best_site_file(
+  FILE *best_site_file, 
+  CISML_T *cisml, 
   FIMO_OPTIONS_T options
 ) {
 
-  char *header =
-    "#pattern name\tsequence name\tstart\tstop\tstrand"
-    "\tscore\tp-value\tq-value\tmatched sequence\n";
-  fputs(header, fimo_file);
+  CISML_MATCH_IT_T *it = allocate_cisml_match_iterator(cisml);
+  MATCHED_ELEMENT_T *match = NULL;
+  while ((match = cisml_match_iterator_next(it)) !=NULL) {
+    SCANNED_SEQUENCE_T *scanned_seq = get_matched_element_scanned_seq(match);
+    if (get_matched_element_is_best_site(match)) {
+      print_site_as_narrow_peak(best_site_file, match, scanned_seq);
+    }
+  }
+
+  free_cisml_match_iterator(it);
+}
+
+/**********************************************************************
+ * This function saves significant FIMO results as a TSV file.
+ *********************************************************************/
+void print_fimo_tsv_file(
+  FILE *tsv_file, 
+  CISML_T *cisml, 
+  FIMO_OPTIONS_T options
+) {
 
   CISML_MATCH_IT_T *it = allocate_cisml_match_iterator(cisml);
   MATCHED_ELEMENT_T *match = NULL;
@@ -255,33 +322,21 @@ void print_fimo_text_file(
     else {
       if (qvalue > options.output_threshold) continue;
     }
-    int start =  get_matched_element_start(match);
-    int stop = get_matched_element_stop(match);
-    if (stop < start) {
-      SWAP(int, start, stop);
-    }
     SCANNED_SEQUENCE_T *scanned_seq = get_matched_element_scanned_seq(match);
-    PATTERN_T *pattern = get_scanned_sequence_parent(scanned_seq);
-    fprintf(
-      fimo_file,
-      "%s\t%s\t%d\t%d\t%c\t%g\t%.3g\t%.3g\t%s\n",
-      get_pattern_name(pattern),
-      get_scanned_sequence_name(scanned_seq),
-      start,
-      stop,
-      get_matched_element_strand(match),
-      get_matched_element_score(match),
-      pvalue,
-      qvalue,
-      get_matched_element_sequence(match)
-    );
+    print_site_as_tsv(tsv_file, true, match, scanned_seq);
   }
 
   free_cisml_match_iterator(it);
+
+  // Finish the TSV output.
+  char *version_message = "# FIMO (Find Individual Motif Occurrences): Version " VERSION " compiled on " __DATE__ " at " __TIME__ "\n";
+  fprintf(tsv_file, "\n%s", version_message);
+  fprintf(tsv_file, "# The format of this file is described at %s/%s.\n", SITE_URL, "doc/fimo-output-format.html#tsv_results");
+  fprintf(tsv_file, "# %s\n", options.command_line);
 }
 
 /**********************************************************************
- * This function saves FIMO results as a tab-delimited text file
+ * This function saves FIMO results as a GFF3 file.
  *********************************************************************/
 void print_fimo_gff_file(
   FILE *fimo_file,
@@ -294,6 +349,13 @@ void print_fimo_gff_file(
 
   int num_patterns = get_cisml_num_patterns(cisml);
   PATTERN_T **patterns = get_cisml_patterns(cisml);
+  const char *seq_ontology_term = NULL;
+  if (alph_extends_dna(options.alphabet) || alph_extends_rna(options.alphabet)) {
+    seq_ontology_term = "nucleotide_motif";
+  }
+  else {
+    seq_ontology_term = "sequence_motif";
+  }
   int i = 0;
   for (i = 0; i < num_patterns; ++i) {
     int num_seqs = get_pattern_num_scanned_sequences(patterns[i]);
@@ -306,53 +368,60 @@ void print_fimo_gff_file(
       int k = 0;
       for (k = 0; k < num_matches; ++k) {
         ++pattern_id;
+        double pvalue = get_matched_element_pvalue(matches[k]);
+        double qvalue = get_matched_element_qvalue(matches[k]);
+        if (options.threshold_type == PV_THRESH) {
+          if (pvalue > options.output_threshold) continue;
+        }
+        else {
+          if (qvalue > options.output_threshold) continue;
+        }
         int start =  get_matched_element_start(matches[k]);
         int stop = get_matched_element_stop(matches[k]);
         if (stop < start) {
           SWAP(int, start, stop);
         }
+        char *motif_id = get_pattern_accession(patterns[i]);
+        char *motif_id2 = get_pattern_name(patterns[i]);
+        char qvalue_field[100];
         if (options.compute_qvalues) {
-          fprintf(
-            fimo_file,
-            "%s\tfimo\t%s\t%d\t%d\t%3.3g\t%c\t.\t"
-            "Name=%s;ID=%s-%d-%s;pvalue=%.3g;qvalue= %.3g;sequence=%s;\n",
-            get_scanned_sequence_name(seqs[j]),
-            alph_is_builtin_dna(options.alphabet) ? "nucleotide_motif" : "polypeptide_motif",
-            start,
-            stop,
-            MIN(1000.0, -4.342 * my_log(get_matched_element_pvalue(matches[k]))), // -10 * log10(x)
-            get_matched_element_strand(matches[k]),
-            get_pattern_name(patterns[i]),
-            get_pattern_name(patterns[i]),
-            pattern_id,
-            get_scanned_sequence_name(seqs[j]),
-            get_matched_element_pvalue(matches[k]),
-            get_matched_element_qvalue(matches[k]),
-            get_matched_element_sequence(matches[k])
-          );
+          sprintf(qvalue_field, "qvalue=%.3g;", qvalue);
+        } else {
+          qvalue_field[0] = '\0';
         }
-        else {
-          fprintf(
-            fimo_file,
-            "%s\tfimo\t%s\t%d\t%d\t%3.3g\t%c\t.\t"
-            "Name=%s;ID=%s-%d-%s;pvalue=%.3g;sequence=%s;\n",
-            get_scanned_sequence_name(seqs[j]),
-            alph_is_builtin_dna(options.alphabet) ? "nucleotide_motif" : "polypeptide_motif",
-            start,
-            stop,
-            -4.342 * my_log(get_matched_element_pvalue(matches[k])), // -10 * log10(x)
-            get_matched_element_strand(matches[k]),
-            get_pattern_name(patterns[i]),
-            get_pattern_name(patterns[i]),
-            pattern_id,
-            get_scanned_sequence_name(seqs[j]),
-            get_matched_element_pvalue(matches[k]),
-            get_matched_element_sequence(matches[k])
-          );
-        }
+        fprintf(
+          fimo_file,
+          "%s\tfimo\t%s\t%d\t%d\t%3.3g\t%c\t.\t"
+          "Name=%s_%s%c;Alias=%s;ID=%s%s%s-%d-%s;pvalue=%.3g;%ssequence=%s;\n",
+          get_scanned_sequence_name(seqs[j]),
+          seq_ontology_term,
+          start,
+          stop,
+          MIN(1000.0, -4.342 * my_log(get_matched_element_pvalue(matches[k]))), // -10 * log10(x)
+          get_matched_element_strand(matches[k]),
+          motif_id, get_scanned_sequence_name(seqs[j]), get_matched_element_strand(matches[k]),
+          motif_id2,
+          motif_id,
+          motif_id2 && *motif_id2 ? "-" : "",
+          motif_id2 ? motif_id2 : "",
+          pattern_id,
+          get_scanned_sequence_name(seqs[j]),
+          pvalue,
+          qvalue_field,
+          get_matched_element_sequence(matches[k])
+        );
       }
     }
   }
+}
+
+void fimo_print_interpreting(FILE *fimo_file) {
+  fprintf(fimo_file,
+    "For further information on how to interpret these results please access "
+    "<a href=\"%s/doc/fimo-output-format.html\">%s/doc/fimo-output-format.html</a>.<br>\n"
+    "To get a copy of the FIMO software please access "
+    "<a href=\"%s\">%s</a>\n",
+    SITE_URL, SITE_URL, SOURCE_URL, SOURCE_URL);
 }
 
 void fimo_print_version(FILE *fimo_file) {
@@ -430,7 +499,7 @@ void fimo_print_database_and_motifs(
     "<p>\n"
     "Random model letter frequencies (%s):\n"
     "<br/>\n",
-    options.bg_filename ? options.bg_filename : "from non-redundant database"
+    options.bg_filename
   );
   for (i = 0; i < alph_size_core(options.alphabet); i++) {
     if (i % 9 == 0) {
@@ -447,15 +516,15 @@ void fimo_print_database_and_motifs(
 }
 
 void fimo_print_counts(FILE *fimo_file, CISML_T *cisml, FIMO_OPTIONS_T options) {
-  int num_stored_matches = get_cisml_num_stored_matches(cisml);
+  int num_passing_cutoff = get_cisml_num_passing_cutoff(cisml);
   fprintf(
     fimo_file,
     "There were %d motif occurences with a %c-value less than %.3g.\n",
-    num_stored_matches,
+    num_passing_cutoff,
     options.threshold_type == PV_THRESH ? 'p' : 'q',
     options.output_threshold
   );
-  if (num_stored_matches >= MAX_HTML_MATCHES) {
+  if (num_passing_cutoff >= MAX_HTML_MATCHES) {
     fprintf(
       fimo_file,
       "<b>Only the most significant %d matches are shown here.</b>\n",
@@ -470,7 +539,7 @@ void fimo_print_match_table(
   FIMO_OPTIONS_T options
 ) {
 
-  // FIXME Handle output threshold
+  // TODO Handle output threshold
 
   // print table header
   char *table_header = NULL;
@@ -479,7 +548,8 @@ void fimo_print_match_table(
       "<table border=\"1\">\n"
       "<thead>\n"
       "<tr>\n"
-      "<th>Motif</th>\n"
+      "<th>Motif ID</th>\n"
+      "<th>Alt ID</th>\n"
       "<th>Sequence Name</th>\n"
       "<th>Strand</th>\n"
       "<th>Start</th>\n"
@@ -539,6 +609,7 @@ void fimo_print_match_table(
         "    <tr>\n"
         "      <td style=\"text-align:left;\">%s</td>\n"
         "      <td style=\"text-align:left;\">%s</td>\n"
+        "      <td style=\"text-align:left;\">%s</td>\n"
         "      <td style=\"text-align:center;\">%c</td>\n"
         "      <td style=\"text-align:left;\">%d</td>\n"
         "      <td style=\"text-align:left;\">%d</td>\n"
@@ -546,6 +617,7 @@ void fimo_print_match_table(
         "      <td style=\"text-align:left;\">%.3g</td>\n"
         "      <td style=\"text-align:left;font-size:x-large;font-family:monospace;\">%s</td>\n"
         "   </tr>\n",
+        get_pattern_accession(pattern),
         get_pattern_name(pattern),
         get_scanned_sequence_name(scanned_seq),
         get_matched_element_strand(match),
@@ -622,7 +694,7 @@ void fimo_print_parameters(FILE *fimo_file, FIMO_OPTIONS_T options) {
     "    <td style=\"padding-left: 5em; padding-right: 2em\">alphabet = %s</td>\n"
     "    <td style=\"padding-left: 5em; padding-right: 2em\">max stored scores = %d</td>\n"
     "  </tr>",
-    options.bg_filename ? options.bg_filename : "non-redundant database",
+    options.bg_filename,
     alph_name(options.alphabet),
     options.max_stored_scores
   );
@@ -707,6 +779,9 @@ void print_fimo_html_file(
       if (strcmp("version", buffer) == 0) {
         fimo_print_version(fimo_file);
       }
+      else if (strcmp("interpreting", buffer) == 0) {
+        fimo_print_interpreting(fimo_file);
+      }
       else if (strcmp("database_and_motifs", buffer) == 0) {
         fimo_print_database_and_motifs(fimo_file, options, motifs, bg_freq, num_seqs, num_residues);
       }
@@ -740,7 +815,7 @@ void print_fimo_html_file(
  * be overwritten.
  *********************************************************************/
 void print_fimo_results(
-  CISML_T *cisml,
+  CISML_T *cisml, 
   FIMO_OPTIONS_T options,
   ARRAY_T *bg_freqs,
   ARRAYLST_T *motifs,
@@ -748,7 +823,12 @@ void print_fimo_results(
   long num_residues
 ) {
 
-  const BOOLEAN_T PRINT_WARNINGS = FALSE;
+  if (options.best_site_only) {
+    print_fimo_best_site_file(stdout, cisml, options);
+    return;
+  }
+
+  const bool PRINT_WARNINGS = false;
   if (create_output_directory(
        options.output_dirname,
        options.allow_clobber,
@@ -764,7 +844,7 @@ void print_fimo_results(
   if (!cisml_file) {
     die("Couldn't open file %s for output.\n", options.cisml_path);
   }
-  print_cisml(cisml_file, cisml, TRUE, NULL, TRUE);
+  print_cisml(cisml_file, cisml, true, NULL, true);
   fclose(cisml_file);
 
   // Print XML.
@@ -784,23 +864,28 @@ void print_fimo_results(
   );
   fclose(fimo_file);
 
-  // Print plain text.
+  // Print TSV file.
   fimo_file = fopen(options.text_path, "w");
   if (!fimo_file) {
     die("Couldn't open file %s for output.\n", options.text_path);
   }
-  print_fimo_text_file(fimo_file, cisml, options);
+  print_fimo_tsv_file(fimo_file, cisml, options);
   fclose(fimo_file);
 
-  // Print GFF (for DNA or PROTEIN only!)
-  if (alph_is_builtin_dna(options.alphabet) || alph_is_builtin_protein(options.alphabet)) {
-    fimo_file = fopen(options.gff_path, "w");
-    if (!fimo_file) {
-      die("Couldn't open file %s for output.\n", options.gff_path);
-    }
-    print_fimo_gff_file(fimo_file, cisml, options);
-    fclose(fimo_file);
+  // Print best sites in narrowPeak file.
+  fimo_file = fopen(options.best_site_path, "w");
+  if (!fimo_file) {
+    die("Couldn't open file %s for output.\n", options.text_path);
   }
+  print_fimo_best_site_file(fimo_file, cisml, options);
+
+  // Print GFF.
+  fimo_file = fopen(options.gff_path, "w");
+  if (!fimo_file) {
+    die("Couldn't open file %s for output.\n", options.gff_path);
+  }
+  print_fimo_gff_file(fimo_file, cisml, options);
+  fclose(fimo_file);
 
   // Print HTML
   fimo_file = fopen(options.html_path, "w");
@@ -808,12 +893,12 @@ void print_fimo_results(
     die("Couldn't open file %s for output.\n", options.html_path);
   }
   print_fimo_html_file(
-    fimo_file,
-    cisml,
-    options,
+    fimo_file, 
+    cisml, 
+    options, 
     motifs,
     bg_freqs,
-    num_seqs,
+    num_seqs, 
     num_residues
   );
   fclose(fimo_file);

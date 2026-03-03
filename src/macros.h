@@ -1,16 +1,3 @@
-/*
- * $Id: macros.h 1048 2006-07-06 20:07:44Z cegrant $
- *
- * $Log$
- * Revision 1.1  2005/07/29 18:43:23  nadya
- * Initial revision
- *
- */
-
-/*
-	Handy macros for general C programming
-*/
-
 /* 7-14-99 tlb; add LOGEV */
 /* 7-12-99 tlb; add DELOG and INT_DELOG */
 /* 7-09-99 tlb; fix documentation for exp10_logx; added LOGZERO check to LOG_SUM
@@ -20,6 +7,11 @@
 
 #ifndef macros_h
 #define macros_h
+
+#define PAGEWIDTH 80            // page width for printing must be > MSN + 40 (see user.h)
+
+// macro to write a line of asterisks
+#define PSTARS(f) {int i; for (i=0;i<PAGEWIDTH;i++)fprintf(f, "*");fprintf(f, "\n");}
 
 /*#define MALLOC_DEBUG	*/	/* turn this on for debugging */
 
@@ -138,6 +130,25 @@ DEXTERN(char *, __crash_x__, NULL);
     y = 0;								\
   }									\
 }
+/*
+  round x to d significant digits unless less than 1, then round
+  to d total digits after the decimal point
+*/
+#define RND2(x, d, y) {                                                 \
+  if (fabs(x) < pow(10.0, -d)) {                                        \
+    y = 0;                                                              \
+  } else if ((x) > 0) {                                                 \
+    double _x_ = ((x) >= 1) ? (x) : (x+1);                              \
+    double _z_ = pow(10.0, ceil((d)-1-mylog10(_x_)));                   \
+    double _y_ = rint(_z_*(_x_))/_z_;                                   \
+    y = ((x) >= 1) ? _y_ : _y_ - 1;                                     \
+  } else if ((x) < 0) {                                                 \
+    double _x_ = ((x) <= -1) ? (-x) : (-(x)+1);                         \
+    double _z_ = pow(10.0, ceil((d)-1-mylog10(_x_)));                   \
+    double _y_ = -rint(_z_*((_x_)))/_z_;                                \
+    y = ((x) <= -1) ? _y_ : _y_ + 1;                                    \
+  }                                                                     \
+}
 
 /* the largest and smallest double precision numbers */
 #define BIG HUGE_VAL
@@ -150,8 +161,12 @@ DEXTERN(char *, __crash_x__, NULL);
 #define MAXASCII 256 				/* number of ASCII codes */
 
 /* max and min for all seasons */
-#define MIN(X,Y) ((X) < (Y) ? (X) : (Y))
-#define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
+#ifndef MIN
+  #define MIN(X,Y) ((X) < (Y) ? (X) : (Y))
+#endif
+#ifndef MAX
+  #define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
+#endif
 
 /* swapping any two items x and y of type "type"*/
 #define SWAP(type, x, y) {type tmp; tmp = (x); (x) = (y); (y) = (tmp);}
@@ -159,7 +174,7 @@ DEXTERN(char *, __crash_x__, NULL);
 /* Used for preventing overflow with logarithms */
 #define EPSILON 1e-200		/* smallest LOG2(X) = -664.385 */
 #define LOG(X) log((double)((X) + EPSILON))
-#define DELOG(X) (exp((double)(X)) - EPSILON)
+#define DELOG(X) (X < -460 ? 0 : exp((double)(X)) - EPSILON)
 #define LOG2(X) (LOG(X)/0.6931471805599452862)
 /*#define LOG2(X) log2((double)((X) + EPSILON))*/
 
@@ -212,9 +227,6 @@ DEXTERN(char *, __crash_x__, NULL);
 	Malloc stuff for improved debugging
 */
 
-/* make a better malloc function */
-#define mymalloc(x) ((x) > 0 ? malloc(x) : NULL)
-
 #ifdef MALLOC_DEBUG			/* debug mode */
 
 /* make a better free function */
@@ -250,7 +262,8 @@ DEXTERN(char *, __crash_x__, NULL);
 
 /* make a better free function */
 #define myfree(P) {							\
-  if (P) free((char *) (P)); (P) = NULL;						\
+  if (P) free((char *) (P));						\
+  (P) = NULL;								\
 }
 #define dbmalloc(P, N, T) {						\
   (P) = (N) > 0 ? (T *) malloc((N)*sizeof(T)) : NULL;			\
@@ -290,9 +303,6 @@ DEXTERN(char *, __crash_x__, NULL);
 }
 
 /* Useful data types and constants */
-typedef bool BOOLEAN;
-#define FALSE false
-#define TRUE true
 
 /* macros to create and destroy an r x c array;
    avoids problems with multiply subscripted C array elements
@@ -439,6 +449,20 @@ typedef bool BOOLEAN;
 #define MAKE_STRING(x) MAKE_STRING1(x)
 #define MAKE_STRING1(x) #x
 
+// output a message provided the verbosity is set appropriately
+#define DEBUG_MSG(debug_level, debug_msg) { \
+  if (verbosity >= debug_level) { \
+    fprintf(stderr, debug_msg); \
+  } \
+}
+
+// output a formatted message provided the verbosity is set appropriately
+#define DEBUG_FMT(debug_level, debug_msg_format, ...) { \
+  if (verbosity >= debug_level) { \
+    fprintf(stderr, debug_msg_format, __VA_ARGS__); \
+  } \
+}
+
 
 /* end of Perl2C stuff */
 
@@ -451,20 +475,22 @@ typedef bool BOOLEAN;
 
 /* print a debug message once only */
 #ifdef DEBUG
-#define print_once(msg) {static BOOLEAN ft; if (!ft) printf(msg); ft=1;}
+#define print_once(msg) {static bool ft; if (!ft) printf(msg); ft=1;}
 #else
 #define print_once(msg) {}
 #endif
 
+/* Turn of printing except on node 0 in parallel. */
 #ifdef PARALLEL
 #include "mp.h"
 // #define printf printf("node %d: ", mpMyID()); fflush(stdout); printf
 #define printf if (mpMyID() == 0) printf
-//#define fprintf fprintf(stderr, "node %d: ", mpMyID()); fflush(stderr); fprintf //
 #ifndef DEBUG_PARALLEL
 #define fprintf if (mpMyID() == 0) fprintf
 #else
+#define fprintf fprintf(stderr, "node %d: ", mpMyID()); fflush(stderr); fprintf //
 #endif
 
 #define exit(x) {mpFinalize(); exit(x);}
+
 #endif

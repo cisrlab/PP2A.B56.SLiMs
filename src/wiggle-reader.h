@@ -29,37 +29,37 @@ void reset_wiggle_reader(WIGGLE_READER_T *reader);
  * Read from the current position in the file to the first format line 
  * containing a new sequence.  Update the value of the current sequence.
  *
- * Returns TRUE if it was able to advance to the next sequence, FALSE if 
+ * Returns true if it was able to advance to the next sequence, false if 
  * EOF reached before the next sequence was found. Dies if other errors
  * encountered.
  *****************************************************************************/
-BOOLEAN_T go_to_next_sequence_in_wiggle(WIGGLE_READER_T *reader);
+bool go_to_next_sequence_in_wiggle(WIGGLE_READER_T *reader);
 
 
 /******************************************************************************
  * Reads the next data line from the wiggle file
  * 
- * Returns TRUE if it was able to read the line, FALSE if it reaches
+ * Returns true if it was able to read the line, false if it reaches
  * a new sequence sequence or EOF.  Dies if other errors encountered.
  *****************************************************************************/
-BOOLEAN_T get_next_data_line_from_wiggle(
+bool get_next_data_line_from_wiggle(
   WIGGLE_READER_T *reader,
   char **chrom,
   size_t *start,
   size_t *step,
   size_t *span,
   double *value,
-  BOOLEAN_T *found_format_line
+  bool *found_format_line
 );
 
 /******************************************************************************
  * Sets the state of the reader to the positon before the last data block was
  * read
  * 
- * Returns TRUE if it was able to rewind the reader, FALSE otherwise.
+ * Returns true if it was able to rewind the reader, false otherwise.
  * Dies if other errors encountered.
  *****************************************************************************/
-BOOLEAN_T unget_data_line_from_wiggle(WIGGLE_READER_T *reader);
+bool unget_data_line_from_wiggle(WIGGLE_READER_T *reader);
 
 int get_wiggle_eof(WIGGLE_READER_T *reader);
 

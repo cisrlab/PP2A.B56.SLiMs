@@ -187,7 +187,7 @@ int dreme_update_es(PS_T *ps, PS_EN next_state) {
       case ES_ONE_OR_MORE:
         if (old_es.found < 1){
           error(ps, "Expected state %s not found!\n", state_names[old_es.state]);
-          return FALSE;
+          return false;
         }
       default:
         break;
@@ -201,16 +201,16 @@ int dreme_update_es(PS_T *ps, PS_EN next_state) {
       case ES_ZERO_OR_ONE:
         if (es->found > 1) {
           error(ps, "Expected state %s only once!\n", state_names[es->state]);
-          return FALSE;
+          return false;
         }
       default:
         break;
     }
   } else {
     error(ps, "The state %s was not expected!\n", state_names[next_state]);
-    return FALSE;
+    return false;
   }
-  return TRUE;
+  return true;
 }
 
 
@@ -227,8 +227,8 @@ static void start_ele_dreme(PS_T *ps, const xmlChar **attrs) {
   char* names[2] = {"release", "version"};
   int (*parsers[2])(char*, void*) = {ld_str, ld_version};
   void *data[2] = {&release, &(ps->ver)};
-  BOOLEAN_T required[2] = {TRUE, TRUE};
-  BOOLEAN_T done[2];
+  bool required[2] = {true, true};
+  bool done[2];
 
   parse_attributes(dreme_attr_parse_error, ps, "dreme", attrs, 2, names, parsers, data, required, done);
   
@@ -325,8 +325,8 @@ static void start_ele_run_time(PS_T *ps, const xmlChar **attrs) {
   char* names[3] = {"cpu", "real", "stop"};
   int (*parsers[3])(char*, void*) = {ld_double, ld_double, ld_multi};
   void *data[3] = {&cpu_time, &real_time, &stop_multi};
-  BOOLEAN_T required[3] = {TRUE, TRUE, TRUE};
-  BOOLEAN_T done[3];
+  bool required[3] = {true, true, true};
+  bool done[3];
 
   parse_attributes(dreme_attr_parse_error, ps, "run_time", attrs, 3, names, parsers, data, required, done);
 
@@ -360,8 +360,8 @@ static void start_ele_positives(PS_T *ps, const xmlChar **attrs) {
   char* names[4] = {"count", "file", "last_mod_date", "name"};
   int (*parsers[4])(char*, void*) = {ld_long, ld_str, ld_str, ld_str};
   void *data[4] = {&count, &file, &lastmod, &name};
-  BOOLEAN_T required[4] = {TRUE, TRUE, TRUE, TRUE};
-  BOOLEAN_T done[4];
+  bool required[4] = {true, true, true, true};
+  bool done[4];
 
   parse_attributes(dreme_attr_parse_error, ps, "positives", attrs, 4, names, parsers, data, required, done);
 
@@ -394,8 +394,8 @@ static void start_ele_negatives(PS_T *ps, const xmlChar **attrs) {
   char* names[5] = {"count", "file", "from", "last_mod_date", "name"};
   int (*parsers[5])(char*, void*) = {ld_long, ld_str, ld_multi, ld_str, ld_str};
   void *data[5] = {&count, &file, &from_multi, &lastmod, &name};
-  BOOLEAN_T required[5] = {TRUE, FALSE, TRUE, FALSE, TRUE};
-  BOOLEAN_T done[5];
+  bool required[5] = {true, false, true, false, true};
+  bool done[5];
 
   parse_attributes(dreme_attr_parse_error, ps, "negatives", attrs, 5, names, parsers, data, required, done);
 
@@ -428,8 +428,8 @@ static void start_ele_alphabet(PS_T *ps, const xmlChar **attrs) {
   char* names[2] = {"like", "name"};
   int (*parsers[2])(char*, void*) = {ld_multi, ld_str};
   void *data[2] = {&extends_multi, &name};
-  BOOLEAN_T required[2] = {FALSE, FALSE};
-  BOOLEAN_T done[2];
+  bool required[2] = {false, false};
+  bool done[2];
   // just so we know later on when reading the background which used to set the alphabet
   ps->seen_alphabet = true;
 
@@ -463,8 +463,8 @@ static void start_ele_alphabet_letter(PS_T *ps, const xmlChar **attrs) {
   char* names[7] = {"aliases", "colour", "complement", "equals", "id", "name", "symbol"};
   int (*parsers[7])(char*, void*) = {ld_str, ld_hex, ld_char, ld_str, ld_str, ld_str, ld_char};
   void *data[7] = {&aliases, &colour, &complement, &equals, &id, &name, &symbol};
-  BOOLEAN_T required[7] = {FALSE, FALSE, FALSE, FALSE, TRUE, FALSE, TRUE};
-  BOOLEAN_T done[7];
+  bool required[7] = {false, false, false, false, true, false, true};
+  bool done[7];
 
   aliases = NULL;
   name = NULL;
@@ -512,9 +512,9 @@ void end_ele_strands(PS_T *ps) {
  ****************************************************************************/
 void end_ele_norc(PS_T *ps) {
   DREME_STRANDS_EN strands = DREME_STRANDS_GIVEN; // stop compiler complaining
-  if (strcmp("FALSE", ps->characters.buffer) == 0) {
+  if (strcmp("false", ps->characters.buffer) == 0) {
     strands = DREME_STRANDS_BOTH;
-  } else if (strcmp("TRUE", ps->characters.buffer) == 0) {
+  } else if (strcmp("true", ps->characters.buffer) == 0) {
     strands = DREME_STRANDS_GIVEN;
   }
   if (ps->callbacks->handle_strands && ps->state != PS_ERROR) {
@@ -616,8 +616,8 @@ static void start_ele_background(PS_T *ps, const xmlChar **attrs) {
   char* names[4] = {"file", "from", "last_mod_date", "type"};
   int (*parsers[4])(char*, void*) = {ld_str, ld_multi, ld_str, ld_multi};
   void *data[4] = {&file, &from_multi, &lastmod, &type_multi};
-  BOOLEAN_T required[4] = {FALSE, TRUE, FALSE, FALSE};
-  BOOLEAN_T done[4];
+  bool required[4] = {false, true, false, false};
+  bool done[4];
 
   required[3] = !ps->seen_alphabet;
   parse_attributes(dreme_attr_parse_error, ps, "background", attrs, 4, names, parsers, data, required, done);
@@ -656,8 +656,8 @@ static void start_ele_stop(PS_T *ps, const xmlChar **attrs) {
   char* names[3] = {"count", "evalue", "time"};
   int (*parsers[3])(char*, void*) = {ld_int, ld_log10_ev, ld_int};
   void *data[3] = {&count, &log10evalue, &time};
-  BOOLEAN_T required[3] = {FALSE, FALSE, FALSE};
-  BOOLEAN_T done[3];
+  bool required[3] = {false, false, false};
+  bool done[3];
 
   parse_attributes(dreme_attr_parse_error, ps, "stop", attrs, 3, names, parsers, data, required, done);
 
@@ -760,23 +760,24 @@ static void end_ele_description(PS_T *ps) {
  *  unerased_evalue   the evalue of the motif without erasing (returned as log10)
  ****************************************************************************/
 static void start_ele_motif(PS_T *ps, const xmlChar **attrs) {
-  char *id, *seq;
+  char *id, *seq, *alt;
   int length;
   long nsites, p_hits, n_hits;
   double log10pvalue, log10evalue, log10uevalue;
 
-
-  char* names[9] = {"evalue", "id", "length", "n", "nsites", "p", "pvalue", 
+  char* names[10] = {"alt", "evalue", "id", "length", "n", "nsites", "p", "pvalue", 
     "seq", "unerased_evalue"};
-  int (*parsers[9])(char*, void*) = {ld_log10_ev, ld_str, ld_int, ld_long, 
+  int (*parsers[10])(char*, void*) = {ld_str, ld_log10_ev, ld_str, ld_int, ld_long, 
     ld_long, ld_long, ld_log10_pv, ld_str, ld_log10_ev};
-  void *data[9] = {&log10evalue, &id, &length, &n_hits, &nsites, &p_hits, 
+  void *data[10] = {&alt, &log10evalue, &id, &length, &n_hits, &nsites, &p_hits, 
     &log10pvalue, &seq, &log10uevalue};
-  BOOLEAN_T required[9] = {TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, 
-    TRUE, TRUE};
-  BOOLEAN_T done[9];
+  bool required[10] = {false, true, true, true, true, true, true, true, 
+    true, true};
+  bool done[10];
 
-  parse_attributes(dreme_attr_parse_error, ps, "motif", attrs, 9, names, 
+  alt = "";
+
+  parse_attributes(dreme_attr_parse_error, ps, "motif", attrs, 10, names, 
       parsers, data, required, done);
 
   // copy the motif id so we can use it in any error messages
@@ -789,7 +790,7 @@ static void start_ele_motif(PS_T *ps, const xmlChar **attrs) {
   }
 
   if (ps->callbacks->start_motif && ps->state != PS_ERROR) {
-    ps->callbacks->start_motif(ps->user_data, id, seq, length, nsites, p_hits, 
+    ps->callbacks->start_motif(ps->user_data, id, alt, seq, length, nsites, p_hits, 
         n_hits, log10pvalue, log10evalue, log10uevalue);
   }
   dreme_push_es(ps, PS_IN_MATCH, ES_ANY);
@@ -827,8 +828,8 @@ static void start_ele_pos(PS_T *ps, const xmlChar **attrs) {
     char* names[1] = {"i"};
     int (*parsers[1])(char*, void*) = {ld_int};
     void *data[1] = {&pos};
-    BOOLEAN_T required[1] = {TRUE};
-    BOOLEAN_T done[1];
+    bool required[1] = {true};
+    bool done[1];
     parse_attributes(dreme_attr_parse_error, ps, "pos", attrs, 1, names, parsers, data, required, done);
     if (pos != (ps->last_pos + 1)) {
       error(ps, "Motif %s did not have pos %d but instead "
@@ -860,8 +861,8 @@ static void start_ele_match(PS_T *ps, const xmlChar **attrs) {
   int (*parsers[5])(char*, void*) = {ld_log10_ev, ld_long, ld_long, 
     ld_log10_pv, ld_str};
   void *data[5] = {&log10evalue, &n_hits, &p_hits, &log10pvalue, &seq};
-  BOOLEAN_T required[5] = {TRUE, TRUE, TRUE, TRUE, TRUE};
-  BOOLEAN_T done[5];
+  bool required[5] = {true, true, true, true, true};
+  bool done[5];
 
   parse_attributes(dreme_attr_parse_error, ps, "match", attrs, 5, names, 
       parsers, data, required, done);

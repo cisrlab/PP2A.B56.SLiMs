@@ -17,8 +17,13 @@
 #include <assert.h>
 #include <limits.h>
 
+#include "data_types.h"
+
+// Alphabet type names.
+typedef enum {Dna, Rna, Protein, Custom} ALPHABET_T;
+
 /*
- * Defines a alphabet
+ * Defines an alphabet
  *
  * IMPORTANT
  * If you need access to this object then please write your accessor
@@ -169,7 +174,7 @@ ALPH_T* alph_hold(ALPH_T *alphabet);
 
 /*
  * alph_release
- * Deincrement the reference count.
+ * Deincrement the reference count. 
  * If the reference count reaches zero then the alphabet is destroyed.
  * There should be a call to alph_release to pair the initial creation
  * of the alphabet and every subsequent call to alph_hold.
@@ -275,7 +280,7 @@ int alph_size_pairs(const ALPH_T *a);
 #define alph_is_case_insensitive(alph) (((alph)->flags & ALPH_CASE_INSENSITIVE) != 0)
 
 /*
- * Get the alphabet index of a letter.
+ * Get the alphabet index of a letter. 
  *
  * Assumes that the alphabet is valid and that the letter is
  * represented by one byte and does not exceed 255 (if treated as unsigned)
@@ -283,7 +288,7 @@ int alph_size_pairs(const ALPH_T *a);
 #define alph_index(alph, letter) ((alph)->encode[(uint8_t)(letter)] - 1)
 
 /*
- * Get the alphabet index of a letter if it is in the core alphabet.
+ * Get the alphabet index of a letter if it is in the core alphabet. 
  *
  * Assumes that the alphabet is valid and that the letter is
  * represented by one byte and does not exceed 255 (if treated as unsigned)
@@ -301,13 +306,12 @@ int alph_size_pairs(const ALPH_T *a);
 
 /*
  * Get the alphabet index of a letter if it is in the core alphabet or the
- * index of the wildcard when the letter is not core.
+ * index of the wildcard when the letter is not core. 
  *
  * Assumes that the alphabet is valid and that the letter is
  * represented by one byte and does not exceed 255 (if treated as unsigned)
  */
 #define alph_encodec(alph, letter) ((alph)->encodesafe2core[(uint8_t)(letter)])
-
 
 /*
  * Get the alphabet index of the wildcard
@@ -315,7 +319,7 @@ int alph_size_pairs(const ALPH_T *a);
 #define alph_wild(alph) ((alph)->ncore)
 
 /*
- * Get the complement index of a index.
+ * Get the complement index of a index. 
  */
 #define alph_complement(alph, index) ((alph)->complement[(index) + 1] - 1)
 
@@ -436,7 +440,7 @@ bool alph_test(ALPH_T **alpha, int index, char letter);
  *  for one of the predefined alphabets.
  *  If the alphabet is from some buffer a max size can be set
  *  however it will still only test until the first null byte.
- *  If the string is null terminated just set a max > 20
+ *  If the string is null terminated just set a max > 20 
  */
 ALPH_T* alph_type(const char *alphabet, int max);
 
@@ -460,7 +464,7 @@ ARRAY_T* get_mast_frequencies(ALPH_T *alph, bool has_ambigs, bool translate);
 
 /*
  * Load the non-redundant database frequencies into the array.
- * FIXME broken function, currently aliased to get_uniform_frequencies
+ * TODO: broken function, currently aliased to get_uniform_frequencies
  */
 ARRAY_T* get_nrdb_frequencies(ALPH_T *alph, ARRAY_T* freqs);
 
@@ -468,6 +472,11 @@ ARRAY_T* get_nrdb_frequencies(ALPH_T *alph, ARRAY_T* freqs);
  * Load uniform frequencies into the array.
  */
 ARRAY_T* get_uniform_frequencies(ALPH_T *alph, ARRAY_T* freqs);
+
+/*
+ * Add pseudocount and renormalize a frequency array
+*/
+void normalize_frequencies(ALPH_T *alph, ARRAY_T *freqs, double pseudo);
 
 /*
  * Load background file frequencies into the array.
@@ -549,27 +558,27 @@ void extend_markov_model(ALPH_T* alph, bool wildcard_only, AMBIG_CALC_EN method,
 void extrapolate_markov_model(int asize0, int asize1, double ambig_fraction, ARRAY_T* tuples);
 
 /*
- * Get log of the probability of each position in a sequence given a
+ * Get log of the probability of each position in a sequence given a 
  * Markov background model.
  *
  * Note that the Markov model must be normalized for each prefix.
- *
+ * 
  * Returns the cumulative background as an array:
  *    logcumback_i = 0, i=0
  *        = log Pr(s_{0,i-1} | H_0), otherwise.
  * and the total (log) cumulative background probability.
- *
+ * 
  * The probability of any length-w substring starting at position i in the
  * sequence (in the context of the string) can then be computed as:
  *    last_p = i+w-1;
  *    log_p = logcumback[last_p+1] - logcumback[i];
- *
+ * 
  * The background model, H_0, is a Markov model defined by the
  * order, n, and the conditional probabilities, a_cp, where
  *    a_cp[s2i(wa)] = Pr(a | w).
  */
 double calculate_log_cumulative_background(ALPH_T *alph, bool wildcard_only,
-    int order, ARRAY_T *a_cp, const char *seq, double *logcumback);
+    int order, ARRAY_T *a_cp, const char *seq, LCB_T *logcumback);
 
 /*
  * Get a background distribution
@@ -609,8 +618,23 @@ void translate_seq(ALPH_T *alph, char *sequence, int flags);
 /*
  * invcomp_seq
  * Converts a sequence in place to its reverse complement.
+ * Preserve case of input sequence if preserve_case is true
  */
-void invcomp_seq(ALPH_T *alph, char *sequence, long length);
+void invcomp_seq(ALPH_T *alph, char *sequence, long length, bool preserve_case);
+
+/* Check if word is a palindrome */
+bool is_palindrome(
+  ALPH_T *alph,			// sequence alphabet
+  char *word                    // complementable sequence
+);
+
+// Convert ASCII sequence to integer-encoded sequence
+void seq2r(
+  ALPH_T *alph,			// sequence alphabet
+  uint8_t *res,			// destination array for integer encoded
+  char *seq,			// ASCII sequence
+  int len			// length of sequence
+);
 
 /*
  * comp_sym
@@ -685,6 +709,30 @@ static inline __attribute__((always_inline)) int xlate_pos(XLATE_T *xlate, bool 
   return index;
 }
 
+char *fasta_get_markov(
+  int argc,
+  char **argv,
+  bool tmp_file         // create a temporary file and return handle
+);
+
+/***************************************************************************/
+/*
+	get_markov_from_sequences
+
+	Uses fasta-get-markov program to create a MEME background model from
+	the input sequences.
+*/
+/***************************************************************************/
+ARRAY_T *get_markov_from_sequences(
+  char *seqfile,                // name of a sequence file
+  int *order,                   // IN/OUT order of Markov model to create
+  double pseudo,                // pseudocount to use
+  ALPH_T *alph,                 // alphabet
+  char *alph_file,              // name of custom alphabet file (or NULL)
+  ALPHABET_T alphabet_type,     // the enum type of the alphabet
+  bool rc                       // average reverse comps
+);
+
 /*
  * xlate_index
  * Get the index in the destination alphabet for some letters in the source alphabet.
@@ -693,5 +741,6 @@ static inline __attribute__((always_inline)) int xlate_pos(XLATE_T *xlate, bool 
 #define xlate_index(translator, invcomp, sequence) ((translator)->xlate[xlate_pos(translator, invcomp, sequence)] - 1)
 #define xlate_index2(translator, position) ((translator)->xlate[position] - 1)
 
+bool alph_check(ALPH_T *alph, char *syms);
 
 #endif

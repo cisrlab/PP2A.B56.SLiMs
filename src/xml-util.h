@@ -12,10 +12,6 @@
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
-#include <libxslt/xslt.h>
-#include <libxslt/xsltInternals.h>
-#include <libxslt/transform.h>
-#include <libxslt/xsltutils.h>
 #include "alphabet.h"
 
 /***********************************************************************
@@ -31,7 +27,7 @@ xmlXPathObjectPtr xpath_query(
  * Check if property from an XML node exists.
  * Caller is responsible for freeing the xmlChar string.
  ***********************************************************************/
-BOOLEAN_T check_xml_node_property(
+bool check_xml_node_property(
   xmlNodePtr node, 
   char* property_name
 );
@@ -62,7 +58,7 @@ print_xml_to_file_using_stylesheet
 Print the contents of an XML Doc to a file, applying an 
 XSLT stylesheet.
 **********************************************************************/
-BOOLEAN_T print_xml_filename_to_file_using_stylesheet(
+bool print_xml_filename_to_file_using_stylesheet(
     char* input_file_path,      /* path to XML input file IN */
     char* stylesheet_file_path, /* path to MEME XSL stylesheet IN */
     FILE* output_file           /* path to HTML output file IN */
@@ -74,9 +70,9 @@ print_xml_file_to_filename_using_stylesheet
 Print the contents of an XML file to another file applying an 
 XSLT stylesheet.
 
-Returns TRUE if successful, FALSE otherwise.
+Returns true if successful, false otherwise.
 **********************************************************************/
-BOOLEAN_T print_xml_filename_to_filename_using_stylesheet(
+bool print_xml_filename_to_filename_using_stylesheet(
     char* input_file_path,       /* path to XML input file IN */
     char* stylesheet_file_path,  /* path to MEME XSL stylesheet IN */
     char* output_file_path       /* path to HTML output file IN */

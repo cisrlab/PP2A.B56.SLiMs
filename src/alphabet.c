@@ -16,6 +16,7 @@
 #include "red-black-tree.h"
 #include "xlate-in.h"
 
+#include <string.h>
 #include <assert.h>
 #include <ctype.h>
 #include <limits.h>
@@ -378,7 +379,7 @@ ALPH_T* alph_load(const char *filename, bool verbose) {
 /*
  * alph_destroy
  * THIS FUNCTION SHOULD NOT BE CALLED DIRECTLY!
- * Destroys the passed alphabet object.
+ * Destroys the passed alphabet object. 
  * Prints a warning if the reference count is not zero.
  */
 void alph_destroy(ALPH_T *alphabet) {
@@ -420,7 +421,7 @@ ALPH_T* alph_hold(ALPH_T *alphabet) {
 
 /*
  * alph_release
- * Deincrement the reference count.
+ * Deincrement the reference count. 
  * If the reference count reaches zero then the alphabet is destroyed.
  * There should be a call to alph_release to pair the initial creation
  * of the alphabet and every subsequent call to alph_hold.
@@ -450,7 +451,7 @@ static void print_name(FILE *out, const char *name) {
 }
 
 /*
- * print_name
+ * print_symbol
  * Print out the symbol details
  */
 static void print_symbol(FILE *out, const char symbol, const char *name, int32_t colour) {
@@ -578,7 +579,7 @@ void alph_print_xml(ALPH_T *alphabet, char *tag, char *pad, char *indent, FILE *
     }
     if (alph_ncomprise(alphabet, i) == 1) { // core symbol
       if (alph_has_complement(alphabet)) {
-        fprintf(out, " complement=\"%c\"",
+        fprintf(out, " complement=\"%c\"", 
             alph_char(alphabet, alph_complement(alphabet, i)));
       }
     } else { // ambiguous symbol
@@ -665,7 +666,7 @@ int alph_size_pairs(const ALPH_T *a) {
  */
 bool alph_equal(const ALPH_T *a1, const ALPH_T *a2) {
   int i, j;
-  // both must be defined or they can not be considered equal
+  // both must be defined or they cannot be considered equal
   if (a1 == NULL || a2 == NULL) return false;
   // An alphabet is equal to itself!
   if (a1 == a2) return true;
@@ -826,7 +827,7 @@ bool alph_check(ALPH_T *alph, char *syms) {
  *  built-in alphabet.
  *  If the alphabet string is from some buffer a max size can be set
  *  however it will still only test until the first null byte.
- *  If the string is null terminated just set a max > 20
+ *  If the string is null terminated just set a max > 20 
  */
 ALPH_T* alph_type(const char *alphabet, int max) {
   int i;
@@ -924,7 +925,7 @@ void extend_markov_model(ALPH_T* alph, bool wildcard_only, AMBIG_CALC_EN method,
   // test to see if need to skip gap symbols
   has_gap_sym = (alph_ncomprise(alph, asize - 1) == 0);
   asize_gapless = (has_gap_sym ? asize - 1 : asize);
-  // now iterate over all
+  // now iterate over all 
   indexes = mm_malloc(sizeof(int) * (order + 1));
   pos = mm_malloc(sizeof(int) * (order + 1));
   for (len = 1; len <= (order + 1); len++) { // length
@@ -1044,7 +1045,8 @@ void extrapolate_markov_model(int asize0, int asize1, double ambig_fraction, ARR
   normalize_subarray(range_start, range_length, 0.0, tuples);
 
   // 3) generate n-order ambig frequencies Pr(word . ambig) = Pr(word) * Pr(ambig)
-  // now iterate over all
+  // now iterate over all 
+  index_word = 0;
   indexes = mm_malloc(sizeof(int) * (order + 1));
   for (len = 2; len <= (order + 1); len++) { // length
     range_start += range_length;
@@ -1204,7 +1206,7 @@ ARRAY_T* get_mast_frequencies(ALPH_T *alph, bool has_ambigs, bool translate) {
     0.05927076 /* V */, 0.01585647 /* W */, 0.02720962 /* X */,
     0.02158787 /* Y */, 0.00000413 /* Z */
   };
-
+  
   // vars
   const PROB_T *values;
   const char* syms;
@@ -1222,11 +1224,14 @@ ARRAY_T* get_mast_frequencies(ALPH_T *alph, bool has_ambigs, bool translate) {
     values = (translate ? MAST_XPROT_FREQS : MAST_PROT_FREQS);
     syms = MAST_PROT_SYMS;
   } else {
-    value = 1.0 / alph_size_core(alph);
-    for (i = 0; i < alph_size_core(alph); i++) {
-      set_array_item(i, value, freqs);
-    }
-    return freqs;
+    // TLB 1-Feb-2017 changed default when not standard alphabet to MODEL frequencies
+    //value = 1.0 / alph_size_core(alph);
+    //for (i = 0; i < alph_size_core(alph); i++) {
+    //  set_array_item(i, value, freqs);
+    //}
+    //return freqs;
+    myfree(freqs);
+    return NULL;
   }
   for (i = 0; syms[i] != '\0'; i++) {
     index = alph_index(alph, syms[i]);
@@ -1244,10 +1249,10 @@ ARRAY_T* get_mast_frequencies(ALPH_T *alph, bool has_ambigs, bool translate) {
 ARRAY_T* get_nrdb_frequencies(ALPH_T *alph, ARRAY_T *freqs) {
   // constants
   PROB_T const NRDB_AA[] = {
-    0.073164, /* A */ 0.018163, /* C */ 0.051739, /* D */ 0.062340, /* E */
+    0.073164, /* A */ 0.018163, /* C */ 0.051739, /* D */ 0.062340, /* E */ 
     0.040283, /* F */ 0.069328, /* G */ 0.022428, /* H */ 0.056282, /* I */
-    0.058493, /* K */ 0.091712, /* L */ 0.023067, /* M */ 0.046077, /* N */
-    0.050674, /* P */ 0.040755, /* Q */ 0.051897, /* R */ 0.073802, /* S */
+    0.058493, /* K */ 0.091712, /* L */ 0.023067, /* M */ 0.046077, /* N */ 
+    0.050674, /* P */ 0.040755, /* Q */ 0.051897, /* R */ 0.073802, /* S */ 
     0.059411, /* T */ 0.064362, /* V */ 0.013341, /* W */ 0.032682  /* Y */
   };
   PROB_T const NRDB_DNA[] = {
@@ -1256,7 +1261,7 @@ ARRAY_T* get_nrdb_frequencies(ALPH_T *alph, ARRAY_T *freqs) {
   // vars
   const PROB_T *nrdb_freqs;
   int i;
-  // FIXME this is not a great implementation but unless we put the frequencies
+  // TODO this is not a great implementation but unless we put the frequencies
   // into the alphabets I'm not sure how to solve it...
   if (alph_is_builtin_dna(alph)) {
     nrdb_freqs = NRDB_DNA;
@@ -1265,12 +1270,15 @@ ARRAY_T* get_nrdb_frequencies(ALPH_T *alph, ARRAY_T *freqs) {
   } else {
     // well we could make a guess at what alphabet it is and try to use
     // NRDB for dna or protein but I'm not very happy with that option either
-    return get_uniform_frequencies(alph, freqs);
+    // return get_uniform_frequencies(alph, freqs);
+    // TLB 3-Feb-2017; Changed to return NULL so model frequencies will be used for
+    // non-standard alphabets.
+    return(NULL);
   }
   // allocate the array if it is not given
   if (freqs == NULL) freqs = allocate_array(alph->ncore);
   else if (get_array_length(freqs) < alph->ncore) resize_array(freqs, alph->ncore);
-  // copy the frequencies into the array
+  // copy the frequencies into the array 
   for (i = 0; i < alph->ncore; ++i) {
     set_array_item(i, nrdb_freqs[i], freqs);
   }
@@ -1290,10 +1298,28 @@ ARRAY_T* get_uniform_frequencies(ALPH_T *alph, ARRAY_T *freqs) {
   if (freqs == NULL) freqs = allocate_array(alph->ncore);
   else if (get_array_length(freqs) < alph->ncore) resize_array(freqs, alph->ncore);
   // assign core symbols the uniform frequency
-  for (i = 0; i < alph->ncore; i++) {
-    set_array_item(i, freq, freqs);
+  for (i = 0; i < alph->ncore; i++) { 
+    set_array_item(i, freq, freqs); 
   }
   return freqs;
+}
+
+/*
+ * Add pseudocount and renormalize a frequency array
+*/
+void normalize_frequencies(ALPH_T *alph, ARRAY_T *freqs, double pseudo) {
+  int i;
+  // Get the sum of the frequencies.
+  PROB_T sum = pseudo * alph->ncore;	// sum plus pseudocounts
+  for (i = 0; i < alph->ncore; i++) { 
+    sum += get_array_item(i, freqs);
+  }
+  // Add pseudocount and normalize.
+  for (i = 0; i < alph->ncore; i++) { 
+    PROB_T freq = (get_array_item(i, freqs) + pseudo) / sum;
+    set_array_item(i, freq, freqs);
+  }
+  normalize_subarray(0, alph->ncore, 0.0, freqs);
 }
 
 /*
@@ -1548,7 +1574,7 @@ static bool load_markov_model_entry2(const char *bg_filename, FILE *fp, STR_T *s
             "the visible ASCII range.", bg_filename);
       case MKM_NUM_MISSING:
         die("Background file \"%s\" did not list a probability on "
-            "the line listing the symbol chain \"%s\".",
+            "the line listing the symbol chain \"%s\".", 
             bg_filename, str_internal(syms));
       case MKM_NUM_LONG:
         die("Background file \"%s\" has a probability string that "
@@ -1598,7 +1624,7 @@ ARRAY_T* load_markov_model_without_alph(const char *bg_filename, int *order, cha
     die("Unable to open background file \"%s\" for reading.\n", bg_filename);
   }
   // setup symbol map for order 0 bg
-  symbols = rbtree_create(alph_str_cmp, rbtree_strcpy, free, rbtree_dblcpy, free); // TODO FIXME use true alphabet symbol order
+  symbols = rbtree_create(alph_str_cmp, rbtree_strcpy, free, rbtree_dblcpy, free); // TODO use true alphabet symbol order
   // read each entry of length 1
   while (load_markov_model_entry2(bg_filename, fp, line_buf, 100, sym_buf, 100, num_buf, &value)) {
     if (str_len(sym_buf) > 1) break;
@@ -1693,7 +1719,7 @@ ARRAY_T* load_markov_model(ALPH_T *alph, int* order, const char *bg_filename) {
     free(syms);
     return tuples;
   } else {
-    die("Background file \"%s\" is not the %s alphabet as it contained the symbols \"%s\".", bg_filename, alph_name(alph), syms);
+    die("Background file '%s' is not the %s alphabet as it contained the symbols '%s'.", bg_filename, alph_name(alph), syms);
     return NULL; // make the compiler happy.
   }
 }
@@ -1911,39 +1937,100 @@ void translate_seq(ALPH_T *alph, char *sequence, int flags) {
 /*
  * invcomp_seq
  * Converts a sequence in place to its reverse complement.
+ * Preserve case of input sequence if preserve_case is true
  */
-void invcomp_seq(ALPH_T *alph, char *sequence, long length) {
+void invcomp_seq(ALPH_T *alph, char *sequence, long length, bool preserve_case) {
   char *sl, *sr, tmp;
-  sl = sequence;
+  sl = sequence; 
   sr = sequence+(length - 1);
   for(; sl <= sr; sl++, sr--) {
     tmp = comp_sym(alph, *sl);
+    if (preserve_case  && *sl >= 'a' && *sl <= 'z') {
+      tmp = tolower(tmp);
+    }
     *sl = comp_sym(alph, *sr);
+    if (preserve_case  && *sr >= 'a' && *sr <= 'z') {
+      *sl = tolower(*sl);
+    }
     *sr = tmp;
   }
 }
+
+/**********************************************************************/
+/*
+        is_palindrome
+
+        Check if a complementable sequence is a palindrome.
+*/
+/**********************************************************************/
+bool is_palindrome(
+  ALPH_T *alph,			// sequence alphabet
+  char *word                    // complementable sequence
+) {
+  int w = strlen(word);         // length of word
+
+  // check if word is palindromic
+  bool pal = true;
+  char *s1, *s2;
+  for (s1=word,s2=word+w-1; pal && s1<s2; s1++, s2--) {
+    if (*s1 != comp_sym(alph, *s2)) {
+      pal = false;
+      break;
+    }
+  }
+
+  return(pal);
+
+} // is_palindrome
+
+/**********************************************************************/
+/*
+        seq2r
+
+        Convert ASCII sequence to integer-coded sequence.
+*/
+/**********************************************************************/
+void seq2r(
+  ALPH_T *alph,			// sequence alphabet
+  uint8_t *res,			// destination array for integer encoded
+  char *seq,			// ASCII sequence
+  int len			// length of sequence
+)
+{
+  int i;
+  for (i=0; i<len; i++) {
+    res[i] = alph_encode(alph, seq[i]);
+  }
+} // seq2r
 
 //*************************************************************************
 // Get log of the probability of each position in a string given the
 // conditional probabilities (esentially a background model that is normalized
 // for each prefix). The background must also contain an entry for the wildcard
 // at minimum though it can contain entries for all the alphabet.
-//
+// 
 // Returns the cumulative background as an array:
 //    logcumback_i = 0, i=0
 //        = log Pr(s_{0,i-1} | H_0), otherwise.
 // and the total (log) cumulative background probability.
-//
+// 
 // The probability of any length-w substring starting at position i in the
 // string (in the context of the string) can then be computed as:
 //    last_p = i+w-1;
 //    log_p = logcumback[last_p+1] - logcumback[i];
-//
+// 
 // The background model, H_0, is a Markov model defined by the
 // order, n, and the conditional probabilities, a_cp, where
 //    a_cp[s2i(wa)] = Pr(a | w).
 //*************************************************************************
-double calculate_log_cumulative_background(ALPH_T *alph, bool wildcard_only, int order, ARRAY_T *a_cp, const char *seq, double *logcumback) {
+double calculate_log_cumulative_background(
+  ALPH_T *alph, 
+  bool wildcard_only, 
+  int order, 
+  ARRAY_T *a_cp, 
+  const char *seq, 
+  LCB_T *logcumback) 
+{
   int i, j, index, asize, *history;
   double log_pwa;
   uint8_t *encode;
@@ -1973,7 +2060,7 @@ double calculate_log_cumulative_background(ALPH_T *alph, bool wildcard_only, int
     logcumback[i+1] = logcumback[i] + log_pwa;
   }
   free(history);
-  return logcumback[i]; // total cumulative prob.
+  return logcumback[i]; // total cumulative prob. 
 }
 
 /*
@@ -2218,3 +2305,52 @@ int* dhash_seq(ALPH_T *alph, XLATE_T *trans, bool full_alph, char *sequence, lon
   if (trans) return xlate_dhash(trans, full_alph, sequence, length);
   return alph_dhash(alph, full_alph, sequence, length);
 }
+
+/***************************************************************************/
+/*
+	get_markov_from_sequences
+
+	Uses fasta-get-markov program to create a MEME background model from
+	the input sequences.
+*/
+/***************************************************************************/
+ARRAY_T *get_markov_from_sequences(
+  char *seqfile,		// name of a sequence file
+  int *order,			// IN/OUT order of Markov model to create
+  double pseudo,		// pseudocount to use
+  ALPH_T *alph,			// alphabet
+  char *alph_file, 		// name of custom alphabet file (or NULL)
+  ALPHABET_T alphabet_type,	// the enum type of the alphabet
+  bool rc  			// average reverse comps 
+) {
+  ARRAY_T *back; 		// frequencies of tuples 
+
+  char *tmp_bfile = NULL;
+  int bg_fdesc;
+  int argc = 0;
+  char *argv[20];
+  argv[argc++] = "fasta-get-markov";
+  argv[argc++] = "-m";
+  char order_str[10]; sprintf(order_str, "%d", *order);
+  argv[argc++] = order_str;
+  argv[argc++] = "-pseudo";
+  char pseudo_str[20];
+  sprintf(pseudo_str, "%.3g", pseudo);
+  argv[argc++] = pseudo_str;
+  if (alph_file) {
+    argv[argc++] = "-alph";
+    argv[argc++] = alph_file;
+  }
+  if (alphabet_type == Dna) argv[argc++] = "-dna";
+  if (alphabet_type == Rna) argv[argc++] = "-rna";
+  if (alphabet_type == Protein) argv[argc++] = "-protein";
+  if (! rc) argv[argc++] = "-norc";
+  argv[argc++] = "-nosummary";
+  argv[argc++] = "-nostatus";
+  argv[argc++] = seqfile;
+  tmp_bfile = fasta_get_markov(argc, argv, true);
+  back = load_markov_model(alph, order, tmp_bfile);
+  unlink(tmp_bfile);
+  
+  return(back);
+} // get_markov_from_sequences

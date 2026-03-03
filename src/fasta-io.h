@@ -8,6 +8,7 @@
  ****************************************************************************/
 #ifndef FASTA_IO_H
 #define FASTA_IO_H
+#include <stdbool.h>
 #include "seq.h"
 #include "seq-reader-from-fasta.h"
 
@@ -18,7 +19,7 @@
  *
  * Return: Was a sequence successfully read?
  ****************************************************************************/
-BOOLEAN_T read_one_fasta
+bool read_one_fasta
   (ALPH_T*   alph,
    FILE*     fasta_file,
    int       max_seq,
@@ -35,7 +36,7 @@ BOOLEAN_T read_one_fasta
  *
  * Return: Was a sequence segment successfully read?
  ****************************************************************************/
-BOOLEAN_T read_one_fasta_segment(
+bool read_one_fasta_segment(
    ALPH_T* alph,
    FILE* fasta_file,
    int max_chars,
@@ -79,6 +80,7 @@ SEQ_T* read_sequence_from_file
 ARRAY_T* calc_bg_from_file
   (ALPH_T* alph, 
    char* filename, 
-   BOOLEAN_T allow_stdin);
+   bool symmetrical,          // make background symmetrical
+   bool allow_stdin);
 
 #endif

@@ -75,9 +75,16 @@ void append_to_nth_string
    STRING_LIST_T* a_list);
 
 /*************************************************************************
+ * Prepend a string to all strings.
+ *************************************************************************/
+void prepend_to_strings
+  (char*          new_string,
+   STRING_LIST_T* a_list);
+
+/*************************************************************************
  * Does the given string list have any space left in it?
  *************************************************************************/
-BOOLEAN_T have_space
+bool have_space
   (STRING_LIST_T* a_list);
 
 /*************************************************************************
@@ -124,16 +131,31 @@ void remove_strings
 /*************************************************************************
  * Does a given string appear in a given list?
  *************************************************************************/
-BOOLEAN_T have_string
+bool have_string
   (char*          a_string,
    STRING_LIST_T* a_list);
 
 /*************************************************************************
  * Does a given sub-string appear in a given list?
  *************************************************************************/
-BOOLEAN_T have_substring
+bool have_substring
   (char*           a_substring,
    STRING_LIST_T*  a_list);
+
+/*************************************************************************
+ * Does a given POSIX regular expression appear in a given list?
+ *************************************************************************/
+bool have_regex
+  (char *a_regex,               // POSIX regular expression
+   STRING_LIST_T* a_list);
+
+/*************************************************************************
+ * Return list of strings matching a given POSIX regular expression
+ * in a given list.
+ *************************************************************************/
+STRING_LIST_T *get_matches_in_string_list
+  (char *a_regex,               // POSIX regular expression
+   STRING_LIST_T *a_list);
 
 /*************************************************************************
  * Return index of a string in the given list.
@@ -159,7 +181,7 @@ void sort_string_list
  *************************************************************************/
 void sort_string_list_by_score
   (STRING_LIST_T* a_list,
-   BOOLEAN_T      reverse); //Descending order
+   bool      reverse); //Descending order
 
 /***************************************************************************
  * Given two sets, A and B, find 
@@ -183,7 +205,7 @@ char* combine_string_list
    char*          separator);
 
 /*****************************************************************************
- * Read a list of strings from a given file.
+ * Read a list of strings from an open file.
  *****************************************************************************/
 STRING_LIST_T* read_string_list
   (FILE* infile);
@@ -193,6 +215,11 @@ STRING_LIST_T* read_string_list
  *****************************************************************************/
 STRING_LIST_T* read_string_list_from_file
   (char* filename);
+
+/*************************************************************************
+ * Create a new string list by splitting a string on a separator character.
+ *************************************************************************/
+STRING_LIST_T* new_string_list_char_split(char separator, char *string);
 
 /*************************************************************************
  * Write out a list of strings.
@@ -211,7 +238,7 @@ void free_string_list
 /*************************************************************************
  * Test two string lists for equality.  Order matters.
  *************************************************************************/
-BOOLEAN_T equal_string_lists
+bool equal_string_lists
   (STRING_LIST_T* a_list,
    STRING_LIST_T* b_list);
 
@@ -220,11 +247,8 @@ BOOLEAN_T equal_string_lists
  *
  * Optionally, print the duplicated strings to stderr.
  *************************************************************************/
-BOOLEAN_T has_duplicates
+bool has_duplicates
   (char*          message, // If message == "", then don't print the list to stderr.
    STRING_LIST_T* my_list);
 
 #endif
-
-
-

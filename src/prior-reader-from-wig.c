@@ -17,22 +17,22 @@
 #include "wiggle-reader.h"
 
 struct wig_prior_block_reader {
+  double default_prior;			// this must be first to match psp_reader
   WIGGLE_READER_T *raw_reader;
   size_t current_position;
-  double default_prior;
   char *sequence_name;
 };
 
 // Forward declarations
 
 // "Virtual" functions for DATA_BLOCK_READER
-BOOLEAN_T get_next_data_block_from_wig(DATA_BLOCK_READER_T *reader, DATA_BLOCK_T *data_block);
-BOOLEAN_T unget_data_block_from_wig(DATA_BLOCK_READER_T *reader);
-BOOLEAN_T go_to_next_sequence_in_wiggle_reader(DATA_BLOCK_READER_T *reader);
-BOOLEAN_T get_seq_name_from_wig(DATA_BLOCK_READER_T *reader, char **name /*OUT*/);
-BOOLEAN_T prior_reader_from_wig_is_eof(DATA_BLOCK_READER_T *reader);
-BOOLEAN_T reset_prior_reader_from_wig(DATA_BLOCK_READER_T *reader);
-BOOLEAN_T close_prior_reader_from_wig(DATA_BLOCK_READER_T *reader);
+bool get_next_data_block_from_wig(DATA_BLOCK_READER_T *reader, DATA_BLOCK_T *data_block);
+bool unget_data_block_from_wig(DATA_BLOCK_READER_T *reader);
+bool go_to_next_sequence_in_wiggle_reader(DATA_BLOCK_READER_T *reader);
+bool get_seq_name_from_wig(DATA_BLOCK_READER_T *reader, char **name /*OUT*/);
+bool prior_reader_from_wig_is_eof(DATA_BLOCK_READER_T *reader);
+bool reset_prior_reader_from_wig(DATA_BLOCK_READER_T *reader);
+bool close_prior_reader_from_wig(DATA_BLOCK_READER_T *reader);
 void free_prior_reader_from_wig(DATA_BLOCK_READER_T *reader);
 
 /******************************************************************************
@@ -80,7 +80,7 @@ void free_prior_reader_from_wig(DATA_BLOCK_READER_T *reader) {
 /******************************************************************************
  * This function closes a wiggle prior block reader UDT.
  *****************************************************************************/
-BOOLEAN_T close_prior_reader_from_wig(DATA_BLOCK_READER_T *reader) {
+bool close_prior_reader_from_wig(DATA_BLOCK_READER_T *reader) {
   WIG_PRIOR_BLOCK_READER_T *wig_reader 
     = (WIG_PRIOR_BLOCK_READER_T *) get_data_block_reader_data(reader);
   wig_reader->current_position = 0;
@@ -88,29 +88,29 @@ BOOLEAN_T close_prior_reader_from_wig(DATA_BLOCK_READER_T *reader) {
     free_wiggle_reader(wig_reader->raw_reader);
     wig_reader->raw_reader = NULL;
   }
-  return TRUE;
+  return true;
 }
 
 /******************************************************************************
  * This function resets a wiggle prior block reader UDT.
  *****************************************************************************/
-BOOLEAN_T reset_prior_reader_from_wig(DATA_BLOCK_READER_T *reader) {
+bool reset_prior_reader_from_wig(DATA_BLOCK_READER_T *reader) {
   WIG_PRIOR_BLOCK_READER_T *wig_reader 
     = (WIG_PRIOR_BLOCK_READER_T *) get_data_block_reader_data(reader);
   reset_wiggle_reader(wig_reader->raw_reader);
   myfree(wig_reader->sequence_name);
   wig_reader->current_position = -1;
-  return TRUE;
+  return true;
 }
 
 /******************************************************************************
  * This function reports on whether a prior reader has reached EOF
- * Returns TRUE if the reader is at EOF
+ * Returns true if the reader is at EOF
  *****************************************************************************/
-BOOLEAN_T prior_reader_from_wig_is_eof(DATA_BLOCK_READER_T *reader) {
+bool prior_reader_from_wig_is_eof(DATA_BLOCK_READER_T *reader) {
   WIG_PRIOR_BLOCK_READER_T *wig_reader 
     = (WIG_PRIOR_BLOCK_READER_T *) get_data_block_reader_data(reader);
-  return get_wiggle_eof(wig_reader->raw_reader) ? TRUE : FALSE;
+  return get_wiggle_eof(wig_reader->raw_reader) ? true : false;
 }
 
 
@@ -119,24 +119,24 @@ BOOLEAN_T prior_reader_from_wig_is_eof(DATA_BLOCK_READER_T *reader) {
  * reader. The name of the sequence is passed using the name parameter.
  * The caller is responsible for freeing the memory for the sequence name.
  *
- * Returns TRUE if successful, FALSE if there is no current sequence, as 
+ * Returns true if successful, false if there is no current sequence, as 
  * at the start of the file.
  *****************************************************************************/
-BOOLEAN_T get_seq_name_from_wig(
+bool get_seq_name_from_wig(
   DATA_BLOCK_READER_T *reader, 
   char **name // OUT
 ) {
 
-  BOOLEAN_T result = FALSE;
+  bool result = false;
   WIG_PRIOR_BLOCK_READER_T *wig_reader 
     = (WIG_PRIOR_BLOCK_READER_T *) get_data_block_reader_data(reader);
 
   if (wig_reader->sequence_name == NULL) {
-    result = FALSE;
+    result = false;
   }
   else {
     *name = strdup(wig_reader->sequence_name);
-    result = TRUE;
+    result = true;
   }
 
   return result;
@@ -146,34 +146,34 @@ BOOLEAN_T get_seq_name_from_wig(
  * Read from the current position in the file to the first prior after the
  * start of the next sequence. Set the value of the current sequence.
  *
- * Returns TRUE if it was able to advance to the next sequence, FALSE if 
+ * Returns true if it was able to advance to the next sequence, false if 
  * EOF reached before the next sequence was found. Dies if other errors
  * encountered.
  *****************************************************************************/
-BOOLEAN_T go_to_next_sequence_in_wiggle_reader(
+bool go_to_next_sequence_in_wiggle_reader(
   DATA_BLOCK_READER_T *reader
 ) {
 
   WIG_PRIOR_BLOCK_READER_T *wig_reader 
     = (WIG_PRIOR_BLOCK_READER_T *) get_data_block_reader_data(reader);
-  BOOLEAN_T result = go_to_next_sequence_in_wiggle(wig_reader->raw_reader);
+  bool result = go_to_next_sequence_in_wiggle(wig_reader->raw_reader);
   wig_reader->sequence_name = get_wiggle_seq_name(wig_reader->raw_reader);
   wig_reader->current_position = 0;
   return result;
 }
 
-BOOLEAN_T get_next_data_block_from_wig(
+bool get_next_data_block_from_wig(
   DATA_BLOCK_READER_T *reader, 
   DATA_BLOCK_T *data_block
 ) {
 
-  BOOLEAN_T result = FALSE;
+  bool result = false;
   int num_read = 0;
 
   WIG_PRIOR_BLOCK_READER_T *wig_reader 
     = (WIG_PRIOR_BLOCK_READER_T *) get_data_block_reader_data(reader);
 
-  BOOLEAN_T found_format_line;
+  bool found_format_line;
   size_t step;
   size_t span;
   double value;
@@ -196,9 +196,9 @@ BOOLEAN_T get_next_data_block_from_wig(
   return result;
 }
 
-BOOLEAN_T unget_data_block_from_wig(DATA_BLOCK_READER_T *reader) {
+bool unget_data_block_from_wig(DATA_BLOCK_READER_T *reader) {
 
-  BOOLEAN_T result = FALSE;
+  bool result = false;
 
   WIG_PRIOR_BLOCK_READER_T *wig_reader 
     = (WIG_PRIOR_BLOCK_READER_T *) get_data_block_reader_data(reader);

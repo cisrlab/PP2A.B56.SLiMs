@@ -85,7 +85,7 @@ int buf_capacity(BUF_T *buf);
  * equal it. If the new capacity is smaller
  * than the mark it is removed.
  */
-void buf_set_capacity(BUF_T *buf, int capacity, BOOLEAN_T update_limit);
+void buf_set_capacity(BUF_T *buf, int capacity, bool update_limit);
 
 /*
  * buf_position
@@ -131,7 +131,7 @@ int buf_remaining(BUF_T *buf);
  *
  * see the helper functions buf_is_delim_letter and buf_is_delim_func.
  */
-int buf_find_next(BUF_T *buf, int (*is_delim)(void*, int), void* config, BOOLEAN_T negate_is_delim);
+int buf_find_next(BUF_T *buf, int (*is_delim)(void*, int), void* config, bool negate_is_delim);
 
 /*
  * buf_is_delim_letter
@@ -231,15 +231,15 @@ int buf_getstr(BUF_T *buf, char *dest, int n);
  * memory would need to add one). 
  *
  */
-char* buf_get_token(BUF_T *buf, int (*is_delim)(void*, int), void* config, BOOLEAN_T negate_is_delim, 
-    BOOLEAN_T done, char *target, int size, int* strlen);
+char* buf_get_token(BUF_T *buf, int (*is_delim)(void*, int), void* config, bool negate_is_delim, 
+    bool done, char *target, int size, int* strlen);
 
 /*
  * buf_consume
  * Skips over any delimiters that are at the front of the buffer.
  * returns the number of delimiters skipped
  */
-int buf_consume(BUF_T *buf, int (*is_delim)(void*, int), void* config, BOOLEAN_T negate_is_delim);
+int buf_consume(BUF_T *buf, int (*is_delim)(void*, int), void* config, bool negate_is_delim);
 
 /*
  * buf_printf
@@ -259,7 +259,7 @@ int buf_printf(BUF_T *buf, const char *fmt, ...);
  * The expected string must be smaller than the buffer or this will 
  * cause a fatal error.
  */
-int buf_unexpected(BUF_T *buf, const char *expected, BOOLEAN_T ignorecase);
+int buf_unexpected(BUF_T *buf, const char *expected, bool ignorecase);
 
 /*
  * buf_fread
@@ -312,14 +312,14 @@ int buf_fread_until(BUF_T *buf, FILE *fp, FILE *outfp, int count, BMSTR_T **stri
  * If a file read error occurs then NULL is returned with strlen set to zero.
  */
 char* buf_fread_token(BUF_T *buf, FILE *fp, int (*is_delim)(void*, int), 
-    void* config, BOOLEAN_T negate_is_delim, char *target, int size, int *strlen);
+    void* config, bool negate_is_delim, char *target, int size, int *strlen);
 
 /*
  * buf_fread_consume
  * consumes all the delimiters returning the number of delimiters that it consumes.
  * returns -1 on read error.
  */
-int buf_fread_consume(BUF_T *buf, FILE *fp, int (*is_delim)(void*, int), void* config, BOOLEAN_T negate_is_delim);
+int buf_fread_consume(BUF_T *buf, FILE *fp, int (*is_delim)(void*, int), void* config, bool negate_is_delim);
 
 /*
  * buf_fread_next_line
@@ -338,6 +338,6 @@ int buf_fread_next_line(BUF_T *buf, FILE *fp);
  * The expected string must be smaller than the buffer or this will 
  * cause a fatal error. If a file read error occurs than it returns -1;
  */
-int buf_fread_unexpected(BUF_T *buf, FILE *fp, char *expected, BOOLEAN_T ignorecase);
+int buf_fread_unexpected(BUF_T *buf, FILE *fp, char *expected, bool ignorecase);
 
 #endif

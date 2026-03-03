@@ -17,7 +17,6 @@
 #include "meme.h"
 #include "macros.h"
 #include "general.h"
-#include "banner.h"
 #include "pssm-distr.h"
 #include <sys/types.h>
 #include <sys/stat.h>

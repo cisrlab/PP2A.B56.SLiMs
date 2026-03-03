@@ -18,8 +18,9 @@
  * priors from a MEME PSP file.
  *****************************************************************************/
 DATA_BLOCK_READER_T *new_prior_reader_from_psp(
-  BOOLEAN_T parse_genomic_coord, 
-  const char *filename
+  bool parse_genomic_coord, 
+  const char *filename,
+  double default_prior
 );
 
 #endif

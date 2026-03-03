@@ -51,7 +51,7 @@ const char *threshold_type_to_string(THRESHOLD_TYPE type) {
 static DATA_BLOCK_READER_T *get_psp_reader(
   const char * prior_filename,
   double default_prior,
-  BOOLEAN_T parse_genomic_coord
+  bool parse_genomic_coord
 ) {
   DATA_BLOCK_READER_T *psp_reader = NULL;
 
@@ -59,14 +59,15 @@ static DATA_BLOCK_READER_T *get_psp_reader(
   size_t len = strlen(prior_filename);
   if (strcmp(prior_filename + len - 4, ".wig") == 0) {
     psp_reader = new_prior_reader_from_wig(
-      prior_filename,
+      prior_filename, 
       default_prior
     );
   }
   else {
     psp_reader = new_prior_reader_from_psp(
         parse_genomic_coord,
-        prior_filename
+        prior_filename,
+        default_prior
       );
   }
 
@@ -81,6 +82,7 @@ static void cleanup_options(FIMO_OPTIONS_T options) {
   myfree(options.html_path);
   myfree(options.text_path);
   myfree(options.gff_path);
+  myfree(options.best_site_path);
   myfree(options.xml_path);
   myfree(options.cisml_path);
   free_string_list(options.selected_motifs);
@@ -100,6 +102,7 @@ static FIMO_OPTIONS_T process_fimo_command_line(
   // Define command line options.
   cmdoption const fimo_options[] = {
     {"alpha", REQUIRED_VALUE},
+    {"bfile", REQUIRED_VALUE},
     {"bgfile", REQUIRED_VALUE},
     {"max-stored-scores", REQUIRED_VALUE},
     {"max-strand", NO_VALUE},
@@ -109,11 +112,13 @@ static FIMO_OPTIONS_T process_fimo_command_line(
     {"o", REQUIRED_VALUE},
     {"oc", REQUIRED_VALUE},
     {"no-qvalue", NO_VALUE},
-    {"parse-genomic-coord", NO_VALUE},
+    {"no-pgc", NO_VALUE},
+    {"parse-genomic-coord", NO_VALUE}, // backward compatibility
     {"psp", REQUIRED_VALUE},
     {"prior-dist", REQUIRED_VALUE},
     {"qv-thresh", NO_VALUE},
     {"text", NO_VALUE},
+    {"best-site", NO_VALUE},
     {"skip-matched-sequence", NO_VALUE},
     {"thresh", REQUIRED_VALUE},
     {"verbosity", REQUIRED_VALUE},
@@ -127,42 +132,46 @@ static FIMO_OPTIONS_T process_fimo_command_line(
     "Usage: fimo [options] <motif file> <sequence file>\n"
     "\n"
     "   Options:\n"
+    "     --o <output dir> (default: fimo_out)\n"
+    "     --oc <output dir> (default: fimo_out)\n"
+    "     --text\n"
+    "     --skip-matched-sequence\n"
+    "     --best-site\n"
+    "     --motif <id> (default: all)\n"
+    "     --motif-pseudo <float> (default: 0.1)\n"
+    "     --no-pgc\n"
+    "     --bfile <background file> (DNA and protein use NRDB by default)\n"
+    "     --psp <PSP filename> (default: none)\n"
     "     --alpha <double> (default 1.0)\n"
-    "     --bgfile <background> (default from NR sequence database)\n"
-    "     --max-stored-scores <int> (default=100000)\n"
-    "     --max-strand\n"
-    "     --motif <id> (default=all)\n"
-    "     --motif-pseudo <float> (default=0.1)\n"
+    "     --prior-dist <PSP distribution filename> (default: none)\n"
+    "     --thresh <float> (default: 1e-4)\n"
+    "     --qv-thresh\n"
     "     --no-qvalue\n"
     "     --norc\n"
-    "     --o <output dir> (default=fimo_out)\n"
-    "     --oc <output dir> (default=fimo_out)\n"
-    "     --parse-genomic-coord\n"
-    "     --psp <PSP filename> (default none)\n"
-    "     --prior-dist <PSP distribution filename> (default none)\n"
-    "     --qv-thresh\n"
-    "     --skip-matched-sequence\n"
-    "     --text\n"
-    "     --thresh <float> (default = 1e-4)\n"
-    "     --verbosity [1|2|3|4] (default 2)\n"
+    "     --max-strand\n"
+    "     --max-stored-scores <int> (default: 100000)\n"
     "     --version (print the version and exit)\n"
+    "     --verbosity [1|2|3|4|5] (default: 2)\n"
     "\n"
     "   When scanning with a single motif use \'-\' for <sequence file> to\n"
     "     read the database from standard input.\n"
-    "   Use \'--bgfile motif-file\' to read the background from the motif file.\n"
+    "   Use \'--bfile --motif--\' to read the background from the motif file.\n"
+    "   Use \'--bfile --uniform--\' to use a uniform background.\n"
+    "   Use \'--bfile --nrdb--\' to use a NRDB background.\n"
     "\n";
 
   int option_index = 0;
 
   /* Make sure various options are set to NULL or defaults. */
-  options.allow_clobber = TRUE;
-  options.compute_qvalues = TRUE;
-  options.max_strand = FALSE;
-  options.parse_genomic_coord = FALSE;
+  options.allow_clobber = true;
+  options.compute_qvalues = true;
+  options.max_strand = false;
+  options.parse_genomic_coord = true;
   options.threshold_type = PV_THRESH;
-  options.text_only = FALSE;
-  options.scan_both_strands = TRUE;
-  options.skip_matched_sequence = FALSE;
+  options.text_only = false;
+  options.best_site_only = false;
+  options.scan_both_strands = true;
+  options.skip_matched_sequence = false;
 
   options.bg_filename = NULL;
   options.command_line = NULL;
@@ -173,7 +182,6 @@ static FIMO_OPTIONS_T process_fimo_command_line(
   options.seq_filename = NULL;
 
   options.max_stored_scores = 100000;
-
 
   options.alpha = 1.0;
   options.pseudocount = 0.1;
@@ -187,11 +195,11 @@ static FIMO_OPTIONS_T process_fimo_command_line(
   simple_setopt(argc, argv, num_options, fimo_options);
 
   // Parse the command line.
-  while (TRUE) {
+  while (true) {
     int c = 0;
     char* option_name = NULL;
     char* option_value = NULL;
-    const char * message = NULL;
+    const char* message = NULL;
 
     // Read the next option, and break if we're done.
     c = simple_getopt(&option_name, &option_value, &option_index);
@@ -200,9 +208,9 @@ static FIMO_OPTIONS_T process_fimo_command_line(
     }
     else if (c < 0) {
       (void) simple_getopterror(&message);
-      die("Error processing command line options (%s)\n", message);
+      die("Error processing command line options: %s\n", message);
     }
-    if (strcmp(option_name, "bgfile") == 0){
+    if (strcmp(option_name, "bfile") == 0 || strcmp(option_name, "bgfile") == 0){
       options.bg_filename = option_value;
     }
     else if (strcmp(option_name, "psp") == 0){
@@ -220,7 +228,7 @@ static FIMO_OPTIONS_T process_fimo_command_line(
     }
     else if (strcmp(option_name, "max-strand") == 0) {
       // Turn on the max-strand option
-      options.max_strand = TRUE;
+      options.max_strand = true;
     }
     else if (strcmp(option_name, "motif") == 0){
       if (options.selected_motifs == NULL) {
@@ -232,20 +240,23 @@ static FIMO_OPTIONS_T process_fimo_command_line(
       options.pseudocount = atof(option_value);
     }
     else if (strcmp(option_name, "norc") == 0){
-      options.scan_both_strands = FALSE;
+      options.scan_both_strands = false;
     }
     else if (strcmp(option_name, "o") == 0){
       // Set output directory with no clobber
       options.output_dirname = option_value;
-      options.allow_clobber = FALSE;
+      options.allow_clobber = false;
     }
     else if (strcmp(option_name, "oc") == 0){
       // Set output directory with clobber
       options.output_dirname = option_value;
-      options.allow_clobber = TRUE;
+      options.allow_clobber = true;
     }
     else if (strcmp(option_name, "parse-genomic-coord") == 0){
-      options.parse_genomic_coord = TRUE;
+      options.parse_genomic_coord = true;
+    }
+    else if (strcmp(option_name, "no-pgc") == 0){
+      options.parse_genomic_coord = false;
     }
     else if (strcmp(option_name, "thresh") == 0){
       options.output_threshold = atof(option_value);
@@ -254,14 +265,17 @@ static FIMO_OPTIONS_T process_fimo_command_line(
       options.threshold_type = QV_THRESH;
     }
     else if (strcmp(option_name, "no-qvalue") == 0){
-      options.compute_qvalues = FALSE;
+      options.compute_qvalues = false;
     }
     else if (strcmp(option_name, "skip-matched-sequence") == 0){
-      options.skip_matched_sequence = TRUE;
-      options.text_only = TRUE;
+      options.skip_matched_sequence = true;
+      options.text_only = true;
     }
     else if (strcmp(option_name, "text") == 0){
-      options.text_only = TRUE;
+      options.text_only = true;
+    }
+    else if (strcmp(option_name, "best-site") == 0){
+      options.best_site_only = true;
     }
     else if (strcmp(option_name, "verbosity") == 0){
       verbosity = atoi(option_value);
@@ -276,14 +290,14 @@ static FIMO_OPTIONS_T process_fimo_command_line(
   }
 
   // Check that positiion specific priors options are consistent
-  if (options.psp_filename != NULL
+  if (options.psp_filename != NULL 
       && options.prior_distribution_filename == NULL) {
     die(
       "Setting the --psp option requires that the"
       " --prior-dist option be set as well.\n"
     );
   }
-  if (options.psp_filename == NULL
+  if (options.psp_filename == NULL 
       && options.prior_distribution_filename != NULL) {
     die(
       "Setting the --prior-dist option requires that the"
@@ -291,19 +305,24 @@ static FIMO_OPTIONS_T process_fimo_command_line(
   }
 
   // Check that qvalue options are consistent
-  if (options.compute_qvalues == FALSE && options.threshold_type == QV_THRESH) {
+  if (options.compute_qvalues == false && options.threshold_type == QV_THRESH) {
     die("The --no-qvalue option cannot be used with the --qv-thresh option");
   }
 
+  // --text and --best-site are incompatible. 
+  if (options.text_only == true && options.best_site_only) {
+      die("The --text option cannot be used with the --best-site option");
+  }
+
   // Turn off q-values if text only.
-  if (options.text_only == TRUE) {
+  if (options.text_only == true) {
     if (options.threshold_type == QV_THRESH) {
       die("The --text option cannot be used with the --qv-thresh option");
     }
     if (options.compute_qvalues) {
       fprintf(stderr, "Warning: text mode turns off computation of q-values\n");
     }
-    options.compute_qvalues = FALSE;
+    options.compute_qvalues = false;
   }
 
   // Must have sequence and motif file names
@@ -322,37 +341,45 @@ static FIMO_OPTIONS_T process_fimo_command_line(
 
   // Set up path values for needed stylesheets and output files.
   options.HTML_FILENAME = "fimo.html";
-  options.TEXT_FILENAME = "fimo.txt";
+  options.TSV_FILENAME = "fimo.tsv";
   options.GFF_FILENAME = "fimo.gff";
+  options.BEST_SITE_FILENAME = "best_site.narrowPeak";
   options.XML_FILENAME = "fimo.xml";
   options.CISML_FILENAME = "cisml.xml";
   options.html_path = make_path_to_file(options.output_dirname, options.HTML_FILENAME);
-  options.text_path = make_path_to_file(options.output_dirname, options.TEXT_FILENAME);
+  options.text_path = make_path_to_file(options.output_dirname, options.TSV_FILENAME);
   options.gff_path = make_path_to_file(options.output_dirname, options.GFF_FILENAME);
+  options.best_site_path = make_path_to_file(options.output_dirname, options.BEST_SITE_FILENAME);
   options.xml_path = make_path_to_file(options.output_dirname, options.XML_FILENAME);
   options.cisml_path = make_path_to_file(options.output_dirname, options.CISML_FILENAME);
 
   return options;
-
-}
+} // process_fimo_command_line
 
 /**********************************************
 * Read the motifs from the motif file.
 **********************************************/
 static void fimo_read_motifs(
-  FIMO_OPTIONS_T *options,
-  ARRAYLST_T **motifs,
+  FIMO_OPTIONS_T *options, 
+  ARRAYLST_T **motifs, 
   ARRAY_T **bg_freqs) {
 
   MREAD_T *mread;
 
-  mread = mread_create(options->meme_filename, OPEN_MFILE);
-  mread_set_bg_source(mread, options->bg_filename);
+  mread = mread_create(options->meme_filename, OPEN_MFILE, options->scan_both_strands);
+  mread_set_bg_source(mread, options->bg_filename, NULL);
   mread_set_pseudocount(mread, options->pseudocount);
 
   *motifs = mread_load(mread, NULL);
   options->alphabet = alph_hold(mread_get_alphabet(mread));
+
+  // Check that the reading of the motif file was successful.
+  if (options->alphabet == NULL) {
+    die("An error occurred reading the motif file.\n");
+  }
+
   *bg_freqs = mread_get_background(mread);
+  options->bg_filename = mread_get_other_bg_src(mread);
   mread_destroy(mread);
 
   // Check that we got back some motifs
@@ -363,15 +390,11 @@ static void fimo_read_motifs(
 
   // If motifs use protein alphabet we will not scan both strands
   if (!alph_has_complement(options->alphabet)) {
-    options->scan_both_strands = FALSE;
+    options->scan_both_strands = false;
   }
 
-  if (options->scan_both_strands == TRUE) {
-    // Correct background by averaging on freq. for both strands.
-    average_freq_with_complement(options->alphabet, *bg_freqs);
-    normalize_subarray(0, alph_size_core(options->alphabet), 0.0, *bg_freqs);
-    // Make reverse complement motifs.
-    add_reverse_complements(*motifs);
+  if (options->scan_both_strands == true) {
+    add_reverse_complements(*motifs); // Make reverse complement motifs.
   }
 
 }
@@ -379,7 +402,7 @@ static void fimo_read_motifs(
 /*************************************************************************
  * Write a motif match to the appropriate output files.
  *************************************************************************/
-BOOLEAN_T fimo_record_score(
+bool fimo_record_score(
   const FIMO_OPTIONS_T options,
   PATTERN_T *pattern,
   SCANNED_SEQUENCE_T *scanned_seq,
@@ -394,10 +417,10 @@ BOOLEAN_T fimo_record_score(
     reservoir_sample(reservoir, pvalue);
   }
 
-  BOOLEAN_T score_recorded = FALSE;
+  bool score_recorded = false;
   if (pvalue <= options.output_threshold) {
     if (options.text_only) {
-      print_site_as_text(match, scanned_seq);
+      print_site_as_tsv(stdout, false, match, scanned_seq);
     } else {
       score_recorded = add_pattern_matched_element(pattern, match);
     }
@@ -409,7 +432,7 @@ BOOLEAN_T fimo_record_score(
 /*************************************************************************
  * Calculate the log odds score for a single motif-sized window.
  *************************************************************************/
-static inline BOOLEAN_T fimo_score_site(
+static inline bool fimo_score_site(
   const FIMO_OPTIONS_T options,
   char *seq,
   double prior,
@@ -420,7 +443,7 @@ static inline BOOLEAN_T fimo_score_site(
 
   ARRAY_T* pv_lookup = pssm->pv;
   MATRIX_T* pssm_matrix = pssm->matrix;
-  BOOLEAN_T scorable_site = TRUE;
+  bool scorable_site = true;
   double scaled_log_odds = 0.0;
 
   // For each position in the site
@@ -431,13 +454,13 @@ static inline BOOLEAN_T fimo_score_site(
 
     // Check for gaps and ambiguity codes at this site
     if (aindex == -1) {
-      scorable_site = FALSE;
+      scorable_site = false;
       break;
     }
     scaled_log_odds += get_matrix_cell(motif_position, aindex, pssm_matrix);
-  }
+  } // position
 
-  if (scorable_site == TRUE) {
+  if (scorable_site == true) {
 
     int w = pssm->w;
     *score = get_unscaled_pssm_score(scaled_log_odds, pssm);
@@ -445,7 +468,7 @@ static inline BOOLEAN_T fimo_score_site(
     if (!isnan(prior)) {
     // Use the prior to adjust the motif site score.
     // Using the log-odds prior increases the width
-      // of the scaled score table by 1.
+    // of the scaled score table by 1.
       ++w;
       double prior_log_odds = (options.alpha) * prior;
       prior_log_odds = my_log2(prior_log_odds / (1.0 - prior_log_odds));
@@ -467,17 +490,20 @@ static inline BOOLEAN_T fimo_score_site(
       fprintf(stderr, "Assigning %d to scaled log-odds score.\n", max_log_odds);
       scaled_log_odds = (float) max_log_odds;
     }
+    // Round scores and pvalues to 10 significant digits so they will be consistent across platforms
+    // (especially cross-compiled Docker).
     *score = scaled_to_raw(scaled_log_odds, w, pssm->scale, pssm->offset);
+    RND(*score, 10, *score);
     *pvalue = get_array_item((int) scaled_log_odds, pv_lookup);
+    RND(*pvalue, 10, *pvalue);
 
-  }
+  } // scorable_site
 
   return scorable_site;
-
-}
+} // fimo_score_site
 
 /*************************************************************************
- * Calculate and record the log-odds score and p-value for each
+ * Calculate and record the log-odds score and p-value for each 
  * possible motif site in the sequence.
  *
  * Returns the length of the sequence.
@@ -503,13 +529,13 @@ static long fimo_score_sequence(
 
   char strand = (!alph_has_complement(options.alphabet) ? '.' : '+');
   char *fasta_seq_name = NULL;
-  BOOLEAN_T fasta_result
+  bool fasta_result 
     = fasta_reader->get_seq_name(fasta_reader, &fasta_seq_name);
 
   if (psp_reader != NULL) {
 
     // Check current seq in psp_reader
-    BOOLEAN_T psp_result = FALSE;
+    bool psp_result = false;
     char *psp_seq_name = NULL;
     psp_result = psp_reader->get_seq_name(psp_reader, &psp_seq_name);
     if (!psp_seq_name || strcmp(fasta_seq_name, psp_seq_name) != 0) {
@@ -518,7 +544,7 @@ static long fimo_score_sequence(
       psp_result = psp_reader->go_to_next_sequence(psp_reader);
       if (psp_result) {
         // Replace old seq name with new seq name
-        myfree(psp_seq_name);
+        myfree(psp_seq_name); 
         psp_result = psp_reader->get_seq_name(psp_reader, &psp_seq_name);
         if (!psp_result) {
           die("Unable to read sequence name from psp reader");
@@ -527,7 +553,7 @@ static long fimo_score_sequence(
 
       // Sequences must be in the same order in the FASTA file and PSP file.
       // So the seq names from the psp reader and seq reader had better match
-      // now
+      // now.
       if (!psp_result || strcmp(fasta_seq_name, psp_seq_name) != 0) {
         die(
           "Sequence name %s from PSP file %s doesn't match\n"
@@ -543,11 +569,8 @@ static long fimo_score_sequence(
 
   }
 
-  // Get at the motif name without any strand indicator.
-  char* bare_motif_id = get_motif_id(motif);
-
   // Create a scanned_sequence record and record it in pattern.
-  SCANNED_SEQUENCE_T* scanned_seq =
+  SCANNED_SEQUENCE_T* scanned_seq = 
     allocate_scanned_sequence(fasta_seq_name, fasta_seq_name, pattern);
 
   // Score and record each possible motif site in the sequence
@@ -567,7 +590,7 @@ static long fimo_score_sequence(
     }
   }
 
-  while (fasta_reader->get_next_block(fasta_reader, seq_block) != FALSE) {
+  while (fasta_reader->get_next_block(fasta_reader, seq_block) != false) {
 
     double prior = NAN;
     ++num_positions;
@@ -607,24 +630,24 @@ static long fimo_score_sequence(
         if (!rc_seq) {
           die("Unable to allocate memory for RC sequence string.\n");
         }
-        invcomp_seq(options.alphabet, rc_seq, get_motif_length(motif));
+        invcomp_seq(options.alphabet, rc_seq, get_motif_length(motif), false);
         set_matched_element_sequence(rev_match, rc_seq);
       }
       set_matched_element_strand(rev_match, '-');
     }
 
     // Get corresponding priors.
-    if (psp_reader) {
+    if (psp_reader) { 
       get_prior_from_reader(
-        psp_reader,
-        fasta_seq_name,
+        psp_reader, 
+        fasta_seq_name, 
         fwd_start,
         &prior_block,
         &prior
-      );
+      ); 
     }
 
-    BOOLEAN_T scoreable_site = FALSE;
+    bool scoreable_site = false;
     double fwd_score = NAN;
     double fwd_pvalue = NAN;
     double rev_score = NAN;
@@ -645,24 +668,24 @@ static long fimo_score_sequence(
       }
     }
 
-    BOOLEAN_T fwd_match_recorded = FALSE;
-    BOOLEAN_T rev_match_recorded = FALSE;
+    bool fwd_match_recorded = false;
+    bool rev_match_recorded = false;
     if (scoreable_site) {
       if (rev_match && options.max_strand) {
-        // Report the larger of the two scores for this site or choose
+        // Report the larger of the two scores for this site or choose 
         // randomly if tied..
         if (rev_score > fwd_score || (rev_score == fwd_score && drand_mt()>0.5)) {
-          rev_match_recorded =
+          rev_match_recorded = 
             fimo_record_score(options, pattern, scanned_seq, reservoir, rev_match);
         }
         else {
-          fwd_match_recorded =
+          fwd_match_recorded = 
             fimo_record_score(options, pattern, scanned_seq, reservoir, fwd_match);
         }
       }
       else {
         // Certainly record the forward score
-        fwd_match_recorded =
+        fwd_match_recorded = 
           fimo_record_score(options, pattern, scanned_seq, reservoir, fwd_match);
         if (rev_match) {
           // Record the rev. score too
@@ -671,7 +694,6 @@ static long fimo_score_sequence(
         }
       }
     }
-
 
     if (!options.text_only && !fwd_match_recorded) {
       free_matched_element(fwd_match);
@@ -691,7 +713,7 @@ static long fimo_score_sequence(
     }
   }
 
-  // Count reminaing positions in the sequence.
+  // Count remaining positions in the sequence.
   num_positions += get_num_read_into_data_block(seq_block);
 
   free_data_block(seq_block);
@@ -712,16 +734,16 @@ static void fimo_build_pssms(
   PSSM_T **rev_pssm
 ) {
   // Build PSSM for motif and tables for p-value calculation.
-  // FIXME: the non-averaged freqs should be used for p-values
+  // TODO: the non-averaged freqs should be used for p-values
   *pos_pssm = build_motif_pssm(
-     motif,
-     bg_freqs,
-     bg_freqs,
-     prior_dist,
+     motif, 
+     bg_freqs, 
+     bg_freqs, 
+     prior_dist, 
      options.alpha,
-     PSSM_RANGE,
+     PSSM_RANGE, 
      0,    // no GC bins
-     FALSE // make log-likelihood pssm
+     false // make log-likelihood pssm
   );
 
   // Open the output file for the p-value lookup table, if requested.
@@ -732,13 +754,13 @@ static void fimo_build_pssms(
   if (options.pval_lookup_filename != NULL) {
 
     FILE *pval_lookup_file = NULL;
-    if (open_file(options.pval_lookup_filename, "w", FALSE,
+    if (open_file(options.pval_lookup_filename, "w", false,
       "p-value lookup table",
       "p-value lookup table", &pval_lookup_file) == 0) {
       Rf_error("exit:%d", (EXIT_FAILURE));
     }
     // Print the cumulative lookup table.
-    print_array((*pos_pssm)->pv, 8, 6, TRUE, pval_lookup_file);
+    print_array((*pos_pssm)->pv, 8, 6, true, pval_lookup_file);
     // Also print the non-cumulative version.
     int i;
     for (i = 1; i < get_array_length((*pos_pssm)->pv); i++) {
@@ -750,19 +772,20 @@ static void fimo_build_pssms(
 
   // If needed, build the PSSM for the reverse complement motif.
   if (options.scan_both_strands) {
-    // FIXME: the non-averaged freqs should be used for p-values
+    // TODO: the non-averaged freqs should be used for p-values
     *rev_pssm = build_motif_pssm(
-      rev_motif,
-      bg_freqs,
-      bg_freqs,
-      prior_dist,
+      rev_motif, 
+      bg_freqs, 
+      bg_freqs, 
+      prior_dist, 
       options.alpha,
-      PSSM_RANGE,
+      PSSM_RANGE, 
       0, // GC bins
-      FALSE
+      false
     );
   }
 }
+
 /**************************************************************
  * Score each of the sites for each of the selected motifs.
  **************************************************************/
@@ -785,27 +808,34 @@ static void fimo_score_each_motif(
   }
 
   // Iterate over all motifs (including rev. comp).
+  bool first_motif = true;
   bool need_reset = false;
   int num_motifs = arraylst_size(motifs);
   int num_selected_motifs = get_num_strings(options.selected_motifs);
   int motif_index = 0;
   for (motif_index = 0; motif_index < num_motifs; motif_index++) {
 
-    *num_scanned_sequences = 0;
-    *num_scanned_positions = 0;
-
     MOTIF_T* motif = (MOTIF_T *) arraylst_get(motif_index, motifs);
     char* motif_id = get_motif_st_id(motif);
     char* bare_motif_id = get_motif_id(motif);
+    char* bare_motif_id2 = get_motif_id2(motif);
     int motif_length = get_motif_length(motif);
 
     // Is this a selected motif?
-    if (num_selected_motifs > 0
-         && have_string(bare_motif_id, options.selected_motifs) == FALSE ) {
+    if (num_selected_motifs > 0 
+         && have_string(bare_motif_id, options.selected_motifs) == false ) {
       if (verbosity >= NORMAL_VERBOSE) {
         fprintf(stderr, "Skipping motif %s.\n", motif_id);
       }
       continue;
+    }
+
+    // Only count sequences and positions once.
+    if (first_motif) {
+      *num_scanned_sequences = 0;
+      *num_scanned_positions = 0;
+    } else {
+      first_motif = false;
     }
 
     if (verbosity >= NORMAL_VERBOSE) {
@@ -825,7 +855,7 @@ static void fimo_score_each_motif(
     // Only do this if we have more than one motif so users can
     // actually use "-" for sequences with one motif
     if (need_reset) {
-      // Reset to start of sequence data.
+      // Reset to start of sequence data. 
       fasta_reader->reset(fasta_reader);
       if (psp_reader) {
          psp_reader->reset(psp_reader);
@@ -840,10 +870,10 @@ static void fimo_score_each_motif(
     PSSM_T* rev_pssm = NULL;
     fimo_build_pssms(motif, rev_motif, options, bg_freqs, prior_dist, &pos_pssm, &rev_pssm);
 
-    *num_scanned_sequences = 0;
+    //if (first_motif) *num_scanned_sequences = 0;
 
     // Create cisml pattern for this motif.
-    PATTERN_T* pattern = allocate_pattern(bare_motif_id, bare_motif_id);
+    PATTERN_T* pattern = allocate_pattern(bare_motif_id, bare_motif_id2);
     if (!options.text_only) {
       add_cisml_pattern(cisml, pattern);
       set_pattern_max_stored_matches(pattern, options.max_stored_scores);
@@ -852,10 +882,10 @@ static void fimo_score_each_motif(
 
     // Read the FASTA file one sequence at a time.
     while (
-      fasta_reader->go_to_next_sequence(fasta_reader) != FALSE
+      fasta_reader->go_to_next_sequence(fasta_reader) != false
     ) {
 
-      *num_scanned_positions += fimo_score_sequence(
+      long scanned_positions = fimo_score_sequence(
         options,
         reservoir,
         fasta_reader,
@@ -867,13 +897,18 @@ static void fimo_score_each_motif(
         rev_pssm,
         pattern
       );
-      ++(*num_scanned_sequences);
+      if (first_motif) {
+        ++(*num_scanned_sequences);
+        *num_scanned_positions += scanned_positions;
+      }
 
     }  // All sequences parsed
 
     // The pattern is complete.
     if (!options.text_only) {
       set_pattern_is_complete(pattern);
+      // Compute best site per sequence.
+      pattern_find_best_site(pattern);
       // Compute q-values, if requested.
       if (options.compute_qvalues) {
         int num_samples = get_reservoir_num_samples_retained(reservoir);
@@ -924,7 +959,7 @@ int fimo_main(int argc, char *argv[]) {
   // Set up sequence input
   DATA_BLOCK_READER_T *fasta_reader = new_seq_reader_from_fasta(
     options.parse_genomic_coord,
-    options.alphabet,
+    options.alphabet, 
     options.seq_filename
   );
   //printf("fimo_main: set up sequence input\n");
@@ -942,7 +977,7 @@ int fimo_main(int argc, char *argv[]) {
 
 
   // Create cisml data structure for recording results
-  CISML_T *cisml = allocate_cisml("fimo", options.meme_filename, options.seq_filename);
+  CISML_T *cisml = allocate_cisml("fimo", options.command_line, options.meme_filename, options.seq_filename);
   if (options.threshold_type == PV_THRESH) {
     set_cisml_site_pvalue_cutoff(cisml, options.output_threshold);
   }
@@ -959,9 +994,9 @@ int fimo_main(int argc, char *argv[]) {
 
   // Scan all sequences using each motif
   fimo_score_each_motif(
-    options,
-    bg_freqs,
-    motifs,
+    options, 
+    bg_freqs, 
+    motifs, 
     cisml,
     prior_dist,
     fasta_reader,
@@ -970,14 +1005,10 @@ int fimo_main(int argc, char *argv[]) {
     &num_scanned_positions
   );
 
-//  printf("fimo main: score each motif\n");
-
-
-  if (options.text_only != TRUE) {
-    printf("print_fimo_results: start\n");
+  if (options.text_only != true) {
     print_fimo_results(
-      cisml,
-      options,
+      cisml, 
+      options, 
       bg_freqs,
       motifs,
       num_scanned_sequences,

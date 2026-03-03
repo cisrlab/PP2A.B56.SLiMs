@@ -18,7 +18,7 @@ typedef struct mread MREAD_T;
  *  better error messages and hinting the
  *  file type.
  */
-MREAD_T* mread_create(const char *filename, int options);
+MREAD_T* mread_create(const char *filename, int options, bool symmetrical);
 
 /*
  * Free all memory associated with the motif reader
@@ -42,7 +42,7 @@ ARRAYLST_T* mread_load(MREAD_T *mread, ARRAYLST_T *motifs);
 /*
  * Is there another motif to return
  */
-BOOLEAN_T mread_has_motif(MREAD_T *mread);
+bool mread_has_motif(MREAD_T *mread);
 
 /*
  * Get the next motif. If there is no motif ready then
@@ -60,18 +60,18 @@ void mread_set_conversion(MREAD_T *mread, ALPH_T *alph, const ARRAY_T *bg);
 /*
  * Set the background to be used for pseudocounts.
  */
-void mread_set_background(MREAD_T *mread, const ARRAY_T *bg);
+void mread_set_background(MREAD_T *mread, const ARRAY_T *bg, ALPH_T *alph);
 
 /*
  * Set the background source to be used for pseudocounts.
  * The background is resolved by the following rules:
  * - If source is:
- *   null or "--nrdb--"       use nrdb frequencies
- *   "--uniform--"            use uniform frequencies
- *   "motif-file"             use frequencies in motif file
- *   file name                read frequencies from bg file
+ *   null or "--nrdb--"       		use nrdb frequencies
+ *   "--uniform--"            		use uniform frequencies
+ *   "motif-file", --motif--, --query-- use frequencies in motif file
+ *   file name                		read frequencies from bg file
  */
-void mread_set_bg_source(MREAD_T *mread, const char *source);
+void mread_set_bg_source(MREAD_T *mread, const char *source, ALPH_T *alph);
 
 /*
  * Set the pseudocount to be applied to the motifs.
@@ -84,13 +84,8 @@ void mread_set_pseudocount(MREAD_T *mread, double pseudocount);
  */
 void mread_set_trim(MREAD_T *mread, double trim_bits);
 
-/*
- * Set the file as an alternative to calling update with chunks of the file. 
- * This will cause mread_update to be called automatically when has_motif or 
- * next_motif is called and no motifs are avaliable. It does not close the
- * file.
- */
-void mread_set_file(MREAD_T *mread, FILE *file);
+/* Get the background source. */
+char* mread_get_other_bg_src(MREAD_T *mread);
 
 /*
  * Get the alphabet. If the alphabet is unknown then returns

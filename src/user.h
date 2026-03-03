@@ -1,12 +1,4 @@
-/*
- * $Id: user.h 1048 2006-07-06 20:07:44Z cegrant $
- * 
- * $Log$
- * Revision 1.1  2005/07/29 19:12:25  nadya
- * Initial revision
- *
- */
-
+/* user.h */
 /*
 	User settable parameters
 */
@@ -17,7 +9,6 @@
 #define MSN	 24 		/* maximum length of sample name */
 				/* MSN + 40 < PAGEWIDTH (see meme.h) */
 #define MAXALPH  28		/* maximum length of alphabet + 1 for 'X' */
-#define MAXG 101		/* maximum number of motifs + 1 */
 #define MAXSITE 300		/* maximum length of a site */
 #define MINSITES 2		/* minimum number of sites in valid motif */
 #define LLR_RANGE 200		/* range of scaled LLR statistic */
@@ -32,11 +23,11 @@
 /* maximum allowable length before shortening */
 #define MAX_W 50
 
-#define MNAME 20		/* names of known motifs */
-#define NMOTIFS MAXG		/* maximum number of known motifs */
-
+/* maximum number of MEME motifs to find if -evt set */
+#define MAX_NMOTIFS 1000
 
 /* default size of heap for branching search */
+// Don't really need the heaps now that branching search is removed.
 #define HSIZE 64
 #define HS_DECREASE 2
 
@@ -47,5 +38,11 @@
    approximately 1): */
 #define ERR_EPSILON 0.01
 
+// Tomtom memory footprint is *cubic* in the query width.
+// memory(w) = (w*(w+1)/2) * ((100*w)+1) * 8 * 2
+// memory(100) = 0.8G
+// memory(120) = 1.39G
+// memory(150) = 2.8G
+#define TOMTOM_MAX_QUERY_WIDTH 100
 
 #endif

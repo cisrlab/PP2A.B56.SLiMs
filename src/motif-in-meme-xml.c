@@ -21,6 +21,7 @@ struct fscope {
   int vminor;
   int vpatch;
   int strands;
+  int brief;
   char *release;
   ARRAY_T *background;
   ARRAYLST_T *scanned_sites;
@@ -148,10 +149,10 @@ static void destroy_parser_data(CTX_T *data) {
 void mxml_error(void *ctx, char *format, va_list ap) {
   CTX_T *data = (CTX_T*)ctx;
   int len;
-  char dummy[1], *msg;
+  char *msg;
   va_list ap_copy;
   va_copy(ap_copy, ap);
-  len = vsnprintf(dummy, 1, format, ap_copy);
+  len = vsnprintf(NULL, 0, format, ap_copy);
   va_end(ap_copy);
   msg = mm_malloc(sizeof(char) * (len + 1));
   vsnprintf(msg, len + 1, format, ap);
@@ -175,9 +176,9 @@ static void local_error(CTX_T *data, char *format, ...) {
 static void local_warning(CTX_T *data, char *format, ...) {
   va_list  argp;
   int len;
-  char dummy[1], *msg;
+  char *msg;
   va_start(argp, format);
-  len = vsnprintf(dummy, 1, format, argp);
+  len = vsnprintf(NULL, 0, format, argp);
   va_end(argp);
   msg = mm_malloc(sizeof(char) * (len + 1));
   va_start(argp, format);
@@ -395,9 +396,9 @@ void mxml_end_background(void *ctx) {
  * MEME > motifs > motif
  * Construct the skeleton of a motif.
  ****************************************************************************/
-void mxml_start_motif(void *ctx, char *id, char *name, int width, double sites, 
+void mxml_start_motif(void *ctx, char *id, char *name, char *alt, int width, double sites, 
     double llr, double ic, double re, double bayes_threshold,
-    double log10_evalue, double elapsed_time, char * url) {
+    double log10_evalue, double elapsed_time, char *url) {
   CTX_T *data;
   MOTIF_T *motif;
   
@@ -406,7 +407,7 @@ void mxml_start_motif(void *ctx, char *id, char *name, int width, double sites,
   motif = data->mscope.motif;
   memset(motif, 0, sizeof(MOTIF_T));
   set_motif_id(name, strlen(name), motif);
-  set_motif_id2("MEME", 4, motif);
+  set_motif_id2(alt, sizeof(alt), motif);
   set_motif_strand('+', motif);
   motif->length = width;
   motif->num_sites = sites;
@@ -416,7 +417,7 @@ void mxml_start_motif(void *ctx, char *id, char *name, int width, double sites,
   // calculate alphabet size
   motif->alph = alph_hold(data->alph);
   motif->flags = (data->fscope.strands == 2 ? MOTIF_BOTH_STRANDS : 0);
-  // allocate matricies
+  // allocate matrices
   motif->freqs = allocate_matrix(motif->length, alph_size_core(motif->alph));
   init_matrix(-1, motif->freqs);
   motif->scores = allocate_matrix(motif->length, alph_size_core(motif->alph));
@@ -804,15 +805,24 @@ int mxml_get_strands(void *data) {
 }
 
 /*****************************************************************************
- * Get the motif background
+ * Get the motif brief
  ****************************************************************************/
-BOOLEAN_T mxml_get_bg(void *data, ARRAY_T **bg) {
+int mxml_get_brief(void *data) {
   MXML_T *parser;
   parser = (MXML_T*)data;
-  if (parser->data->fscope.background == NULL) return FALSE;
+  return parser->data->fscope.brief;
+}
+
+/*****************************************************************************
+ * Get the motif background
+ ****************************************************************************/
+bool mxml_get_bg(void *data, ARRAY_T **bg) {
+  MXML_T *parser;
+  parser = (MXML_T*)data;
+  if (parser->data->fscope.background == NULL) return false;
   *bg = resize_array(*bg, get_array_length(parser->data->fscope.background));
   copy_array(parser->data->fscope.background, *bg);
-  return TRUE;
+  return true;
 }
 
 /*****************************************************************************
@@ -846,7 +856,7 @@ void* mxml_file_optional(void *data, int option) {
   if (parser->data->fscope.options_found & option) {
     if (parser->data->fscope.options_returned & option) {
       die("Sorry, optional values are only returned once. "
-          "This is because we can not guarantee that the "
+          "This is because we cannot guarantee that the "
           "previous caller did not deallocate the memory. "
           "Hence this is a feature to avoid memory bugs.\n");
       return NULL;

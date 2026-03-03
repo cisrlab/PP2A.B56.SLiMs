@@ -59,7 +59,7 @@ struct tag {
   long closed; // number of times a close tag has been seen
   long self_closed; // number of times a self closed tag has been seen
   short last; // 0 = self closed (or unseen), 1 = opened last, -1 = closed last
-  BOOLEAN_T is_input_tag; // true if input tag
+  bool is_input_tag; // true if input tag
   BMSTR_T *skip; // should the content be skipped (for script and style tags)
 };
 typedef struct tag TAG_T;
@@ -75,9 +75,9 @@ struct hdata {
   HDATA_ATTR_EN attr; // current attribute
   TAG_T *tag; // current tag
   long tag_count; // total count of html tags sighted
-  BOOLEAN_T leading_slash; // does the current tag have a leading slash
-  BOOLEAN_T trailing_slash; // does the current tag have a trailing slash
-  BOOLEAN_T type_hidden; // does the input tag have a type="hidden" attribute
+  bool leading_slash; // does the current tag have a leading slash
+  bool trailing_slash; // does the current tag have a trailing slash
+  bool type_hidden; // does the input tag have a type="hidden" attribute
   char *name; // the name of the input tag
   long name_overflow; // num of name chars discarded
   char *value; // the value of the input tag
@@ -140,7 +140,7 @@ char * tag_names[] = {
 /*
  * Create a tag datastructure and append it to a set.
  */
-static void add_tag(RBTREE_T *tags, char *name, BOOLEAN_T skip, BOOLEAN_T is_input_tag) {
+static void add_tag(RBTREE_T *tags, char *name, bool skip, bool is_input_tag) {
   TAG_T *tag;
   tag = (TAG_T*)mm_malloc(sizeof(TAG_T));
   memset(tag, 0, sizeof(TAG_T));
@@ -158,7 +158,7 @@ static void add_tag(RBTREE_T *tags, char *name, BOOLEAN_T skip, BOOLEAN_T is_inp
     str_append(endtag, "</", 2);
     str_append(endtag, name, len);
     tag->skip = bmstr_create2(str_internal(endtag), 1);
-    str_destroy(endtag, FALSE);
+    str_destroy(endtag, false);
   }
   rbtree_put(tags, name, tag);
 }
@@ -181,11 +181,11 @@ static RBTREE_T* init_tags() {
   int i;
   tags = rbtree_create(rbtree_strcasecmp, NULL, NULL, NULL, destroy_tag_record);
   for (i = 0; tag_names[i][0] != '\0'; ++i) {
-    add_tag(tags, tag_names[i], FALSE, FALSE);
+    add_tag(tags, tag_names[i], false, false);
   }
-  add_tag(tags, "script", TRUE, FALSE);
-  add_tag(tags, "style", TRUE, FALSE);
-  add_tag(tags, "input", FALSE, TRUE);
+  add_tag(tags, "script", true, false);
+  add_tag(tags, "style", true, false);
+  add_tag(tags, "input", false, true);
   return tags;
 }
 
@@ -223,9 +223,9 @@ HDATA_T* hdata_create(HDATA_FN callback, void *data, size_t max_attr_len) {
   ctxt->attr = HDATA_IGNORE;
   ctxt->tag = NULL;
   ctxt->tag_count = 0;
-  ctxt->leading_slash = FALSE;
-  ctxt->trailing_slash = FALSE;
-  ctxt->type_hidden = FALSE;
+  ctxt->leading_slash = false;
+  ctxt->trailing_slash = false;
+  ctxt->type_hidden = false;
   ctxt->name = NULL;
   ctxt->name_overflow = 0;
   ctxt->value = NULL;
@@ -285,8 +285,8 @@ static void complete_tag(HDATA_T *ctxt) {
   if (ctxt->value) free(ctxt->value);
   ctxt->value = NULL;
   ctxt->value_overflow = 0;
-  ctxt->leading_slash = FALSE;
-  ctxt->trailing_slash = FALSE;
+  ctxt->leading_slash = false;
+  ctxt->trailing_slash = false;
 }
 
 /*
@@ -360,7 +360,7 @@ static size_t state_tagname(HDATA_T *ctxt, const char *chunk, size_t size) {
   if (i == size) return size; // no end found yet
   // check for leading /
   if (str_len(ctxt->strb) > 0 && str_char(ctxt->strb, 0) == '/') {
-    ctxt->leading_slash = TRUE;
+    ctxt->leading_slash = true;
     // remove the leading /
     str_delete(ctxt->strb, 0, 1);
   }
@@ -369,7 +369,7 @@ static size_t state_tagname(HDATA_T *ctxt, const char *chunk, size_t size) {
     // remove the trailing /
     str_truncate(ctxt->strb, -1);
     // set the trailing slash mode, this is mostly handled by state_intag
-    ctxt->trailing_slash = TRUE;
+    ctxt->trailing_slash = true;
   }
   // find the tag (if it exists)
   ctxt->tag = (TAG_T*)rbtree_get(ctxt->tags, str_internal(ctxt->strb));
@@ -399,7 +399,7 @@ static size_t state_intag(HDATA_T *ctxt, const char *chunk, size_t size) {
   }
   if (i >= size) return size; // all space, need more chunks!
   if (chunk[i] == '/') {
-    ctxt->trailing_slash = TRUE; // note that this might also be set by state_tagname
+    ctxt->trailing_slash = true; // note that this might also be set by state_tagname
   } else if (chunk[i] == '>' || chunk[i] == '<') {
     complete_tag(ctxt);
     // check if we need to ignore stuff
@@ -411,7 +411,7 @@ static size_t state_intag(HDATA_T *ctxt, const char *chunk, size_t size) {
     }
     if (chunk[i] == '<') return i;
   } else {
-    ctxt->trailing_slash = FALSE;
+    ctxt->trailing_slash = false;
     ctxt->state = HDATA_ATTRNAME;
     return i;
   }
@@ -593,8 +593,8 @@ static size_t state_skip(HDATA_T *ctxt, const char *chunk, size_t size) {
   if (isspace(chunk[next]) || chunk[next] == '>' || chunk[next] == '<') {
     // change to attribute parsing mode
     ctxt->state = HDATA_INTAG;
-    ctxt->leading_slash = TRUE;
-    ctxt->trailing_slash = FALSE;
+    ctxt->leading_slash = true;
+    ctxt->trailing_slash = false;
     return next;
   } else {
     // its some other tag, step one char past the instance we found and
@@ -745,13 +745,13 @@ static void dispatch_end(HDATA_T *ctxt) {
     case HDATA_TAGNAME:
       // check for leading /
       if (str_char(ctxt->strb, 0) == '/') {
-        ctxt->leading_slash = TRUE;
+        ctxt->leading_slash = true;
         // remove the leading /
         str_delete(ctxt->strb, 0, 1);
       }
       // check for a trailing /
       if (str_char(ctxt->strb, -1) == '/') {
-        ctxt->trailing_slash = TRUE;
+        ctxt->trailing_slash = true;
         // remove the trailing /
         str_truncate(ctxt->strb, -1);
       }
@@ -808,25 +808,25 @@ static void dispatch_end(HDATA_T *ctxt) {
  * position. As there are a finite number of states this ensures that
  * parsing will stop at some point or be detected by this function.
  */
-static BOOLEAN_T loop_check(HDATA_T *ctxt, int prior_state, int consumed) {
+static bool loop_check(HDATA_T *ctxt, int prior_state, int consumed) {
   RBTREE_T *prior_states;
   int new_state;
-  BOOLEAN_T is_new_state;
+  bool is_new_state;
   prior_states = ctxt->prior_states;
   if (consumed == 0) {
     new_state = ctxt->state;
     if (rbtree_size(prior_states) == 0) {
-      if (prior_state == new_state) return TRUE;
+      if (prior_state == new_state) return true;
       rbtree_put(prior_states, &prior_state, NULL);
       rbtree_put(prior_states, &new_state, NULL);
     } else {
-      rbtree_lookup(prior_states, &new_state, TRUE, &is_new_state);
-      if (!is_new_state) return TRUE;
+      rbtree_lookup(prior_states, &new_state, true, &is_new_state);
+      if (!is_new_state) return true;
     }
   } else {
     rbtree_clear(prior_states);
   }
-  return FALSE;
+  return false;
 }
 
 /*

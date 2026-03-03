@@ -19,14 +19,14 @@
  * have been requested.
  * Returns true on success.
  *************************************************************************/
-BOOLEAN_T store_requested_num(RBTREE_T *request_nums, const char *value);
+bool store_requested_num(RBTREE_T *request_nums, const char *value);
 
 /*************************************************************************
  * store a motif identifier in a passed set with the strands of it that
  * have been requested.
  * Returns true on success.
  *************************************************************************/
-BOOLEAN_T store_requested_id(RBTREE_T *request_ids, char *value);
+bool store_requested_id(RBTREE_T *request_ids, char *value);
 
 /***********************************************************************
  * Read the motifs, filter them, create an order and spacing if
@@ -47,7 +47,7 @@ void load_filter_process_motifs_for_hmm
   double motif_pseudo, // IN pseudocount applied to motifs
   double trans_pseudo,  // IN pseudocount applied to transitions
   double spacer_pseudo, // IN pseudocount applied to spacers
-  BOOLEAN_T keep_unused, // IN keep the unused motifs
+  bool keep_unused, // IN keep the unused motifs
   ALPH_T **alphabet, // OUT alphabet of the motifs
   RBTREE_T **motifs, // OUT motifs with file position as key
   ARRAY_T **background, // OUT background from motif file

@@ -20,13 +20,13 @@
 #include "alphabet.h"
 #include "seq-reader-from-fasta.h"
 
-const size_t BUFFER_SIZE = 5000;
+const size_t SEQ_BUFFER_SIZE = 5000;
 
 typedef struct seq_reader_from_fasta {
-  BOOLEAN_T at_end_of_file;
-  BOOLEAN_T at_start_of_line;
-  BOOLEAN_T at_end_of_seq;
-  BOOLEAN_T parse_genomic_coord;
+  bool at_end_of_file;
+  bool at_start_of_line;
+  bool at_end_of_seq;
+  bool parse_genomic_coord;
   int current_position;
   char *seq_buffer;
   size_t seq_buffer_index;
@@ -46,24 +46,24 @@ typedef struct seq_reader_from_fasta {
 // Forward declarations
 
 void free_seq_reader_from_fasta(DATA_BLOCK_READER_T *reader);
-BOOLEAN_T seq_reader_from_fasta_is_eof(DATA_BLOCK_READER_T *reader);
-BOOLEAN_T reset_seq_reader_from_fasta(DATA_BLOCK_READER_T *reader);
-BOOLEAN_T close_seq_reader_from_fasta(DATA_BLOCK_READER_T *reader);
-BOOLEAN_T read_seq_header_from_seq_reader_from_fasta(
+bool seq_reader_from_fasta_is_eof(DATA_BLOCK_READER_T *reader);
+bool reset_seq_reader_from_fasta(DATA_BLOCK_READER_T *reader);
+bool close_seq_reader_from_fasta(DATA_BLOCK_READER_T *reader);
+bool read_seq_header_from_seq_reader_from_fasta(
   SEQ_READER_FROM_FASTA_T *fasta_reader
 );
-BOOLEAN_T get_seq_name_from_seq_reader_from_fasta(
+bool get_seq_name_from_seq_reader_from_fasta(
   DATA_BLOCK_READER_T *reader, 
   char **name // OUT
 );
-BOOLEAN_T go_to_next_sequence_in_seq_reader_from_fasta(
+bool go_to_next_sequence_in_seq_reader_from_fasta(
   DATA_BLOCK_READER_T *reader
 );
-BOOLEAN_T get_next_data_block_from_seq_reader_from_fasta(
+bool get_next_data_block_from_seq_reader_from_fasta(
   DATA_BLOCK_READER_T *reader, 
   DATA_BLOCK_T *data_block
 );
-BOOLEAN_T unget_data_block_from_seq_reader_from_fasta(
+bool unget_data_block_from_seq_reader_from_fasta(
   DATA_BLOCK_READER_T *reader
 );
 
@@ -72,14 +72,14 @@ BOOLEAN_T unget_data_block_from_seq_reader_from_fasta(
  * sequence segments from a FASTA file.
  *****************************************************************************/
 DATA_BLOCK_READER_T *new_seq_reader_from_fasta(
-  BOOLEAN_T parse_genomic_coord, 
+  bool parse_genomic_coord, 
   ALPH_T *alph, 
   const char *filename
 ) {
   SEQ_READER_FROM_FASTA_T *fasta_reader = mm_malloc(sizeof(SEQ_READER_FROM_FASTA_T) * 1);
-  fasta_reader->at_end_of_file = FALSE;
-  fasta_reader->at_start_of_line = TRUE;
-  fasta_reader->at_end_of_seq = FALSE;
+  fasta_reader->at_end_of_file = false;
+  fasta_reader->at_start_of_line = true;
+  fasta_reader->at_end_of_seq = false;
   fasta_reader->parse_genomic_coord = parse_genomic_coord;
   int filename_len = strlen(filename) + 1;
   fasta_reader->filename = mm_malloc(sizeof(char)* filename_len);
@@ -92,18 +92,18 @@ DATA_BLOCK_READER_T *new_seq_reader_from_fasta(
   fasta_reader->seq_name = NULL;
   fasta_reader->seq_name_len = 0;
   fasta_reader->alphabet = alph_hold(alph);
-  fasta_reader->seq_buffer = mm_calloc(sizeof(char), BUFFER_SIZE);
+  fasta_reader->seq_buffer = mm_calloc(sizeof(char), SEQ_BUFFER_SIZE);
   fasta_reader->seq_buffer_index = 0;
   fasta_reader->seq_buffer_last = 0;
   if (
     open_file(
       filename, 
       "r", 
-      TRUE, 
+      true, 
       "FASTA", 
       "sequences", 
       &(fasta_reader->fasta_file
-    )) == FALSE) {
+    )) == false) {
     die("Couldn't open the file %s.\n", filename);
   }
 
@@ -145,8 +145,8 @@ void free_seq_reader_from_fasta(DATA_BLOCK_READER_T *reader) {
 /******************************************************************************
  * This function closes a sequence FASTA reader UDT.
  *****************************************************************************/
-BOOLEAN_T close_seq_reader_from_fasta(DATA_BLOCK_READER_T *reader) {
-  BOOLEAN_T result = FALSE;
+bool close_seq_reader_from_fasta(DATA_BLOCK_READER_T *reader) {
+  bool result = false;
   SEQ_READER_FROM_FASTA_T *fasta_reader 
     = (SEQ_READER_FROM_FASTA_T *) get_data_block_reader_data(reader);
   fasta_reader->current_position = 0;
@@ -159,7 +159,7 @@ BOOLEAN_T close_seq_reader_from_fasta(DATA_BLOCK_READER_T *reader) {
       );
     }
     else {
-      result = TRUE;
+      result = true;
     }
   }
   return result;
@@ -168,7 +168,7 @@ BOOLEAN_T close_seq_reader_from_fasta(DATA_BLOCK_READER_T *reader) {
 /******************************************************************************
  * This function resets a sequence FASTA reader UDT.
  *****************************************************************************/
-BOOLEAN_T reset_seq_reader_from_fasta(DATA_BLOCK_READER_T *reader) {
+bool reset_seq_reader_from_fasta(DATA_BLOCK_READER_T *reader) {
   SEQ_READER_FROM_FASTA_T *fasta_reader 
     = (SEQ_READER_FROM_FASTA_T *) get_data_block_reader_data(reader);
   if (fasta_reader->fasta_file == stdin) {
@@ -178,24 +178,24 @@ BOOLEAN_T reset_seq_reader_from_fasta(DATA_BLOCK_READER_T *reader) {
   else {
     rewind(fasta_reader->fasta_file);
   }
-  memset(fasta_reader->seq_buffer, 0, BUFFER_SIZE);
+  memset(fasta_reader->seq_buffer, 0, SEQ_BUFFER_SIZE);
   fasta_reader->seq_buffer_index = 0;
   fasta_reader->seq_buffer_last = 0;
   fasta_reader->current_position = -1;
-  fasta_reader->at_end_of_file = FALSE;
-  fasta_reader->at_start_of_line = TRUE;
-  fasta_reader->at_end_of_seq = FALSE;
-  return TRUE;
+  fasta_reader->at_end_of_file = false;
+  fasta_reader->at_start_of_line = true;
+  fasta_reader->at_end_of_seq = false;
+  return true;
 }
 
 /******************************************************************************
  * This function reports on whether a prior reader has reached EOF
- * Returns TRUE if the reader is at EOF
+ * Returns true if the reader is at EOF
  *****************************************************************************/
-BOOLEAN_T seq_reader_from_fasta_is_eof(DATA_BLOCK_READER_T *reader) {
+bool seq_reader_from_fasta_is_eof(DATA_BLOCK_READER_T *reader) {
   SEQ_READER_FROM_FASTA_T *fasta_reader 
     = (SEQ_READER_FROM_FASTA_T *) get_data_block_reader_data(reader);
-  return feof(fasta_reader->fasta_file) ? TRUE : FALSE;
+  return feof(fasta_reader->fasta_file) ? true : false;
 }
 
 /******************************************************************************
@@ -203,9 +203,9 @@ BOOLEAN_T seq_reader_from_fasta_is_eof(DATA_BLOCK_READER_T *reader) {
  * current sequence header. If successful it will set the sequence
  * name to the chromosome name, and set the starting sequence position.
  *
- * Returns TRUE if it was able to find genomic coordinates, FALSE otherwise.
+ * Returns true if it was able to find genomic coordinates, false otherwise.
  *****************************************************************************/
-static BOOLEAN_T parse_genomic_coordinates(
+static bool parse_genomic_coordinates(
   SEQ_READER_FROM_FASTA_T *fasta_reader
 ) {
   // Copy chromosome name and position to reader
@@ -233,21 +233,21 @@ static BOOLEAN_T parse_genomic_coordinates(
  * where strand is +|-.
  * e.g., ">mm9_chr18_75759530_7575972_-"
  *
- * Returns TRUE if it was able to find genomic coordinates, FALSE otherwise.
+ * Returns true if it was able to find genomic coordinates, false otherwise.
  *****************************************************************************/
-BOOLEAN_T parse_genomic_coordinates_helper(
-  char*  header,	  // sequence name 
-  char** chr_name_ptr,    // chromosome name ((chr[^:]))
-  size_t * chr_name_len_ptr,// number of characters in chromosome name
-  int *  start_ptr,	  // start position of sequence (chr:(\d+)-)
-  int *  end_ptr	  // end position of sequence (chr:\d+-(\d+))
+bool parse_genomic_coordinates_helper(
+  char *header,	  		// sequence name 
+  char **chr_name_ptr,		// chromosome name ((chr[^:]))
+  size_t *chr_name_len_ptr,	// number of characters in chromosome name
+  int *start_ptr,		// start position of sequence (chr:(\d+)-)
+  int *end_ptr			// end position of sequence (chr:\d+-(\d+))
 ) {
 
   #define NUM_SUBMATCHES 6
   #define ERROR_MESSAGE_SIZE 100
-  #define BUFFER_SIZE 512
+  #define CN_BUFFER_SIZE 512
 
-  static BOOLEAN_T first_time = TRUE;
+  static bool first_time = true;
   static regex_t ucsc_header_regex;
   static regex_t galaxy_header_regex;
   static regmatch_t matches[NUM_SUBMATCHES];
@@ -255,7 +255,7 @@ BOOLEAN_T parse_genomic_coordinates_helper(
   char error_message[ERROR_MESSAGE_SIZE];
   int status = 0;
 
-  if (first_time == TRUE) {
+  if (first_time == true) {
 
     // Initialize regular express for extracting chromsome coordinates;
 
@@ -289,10 +289,10 @@ BOOLEAN_T parse_genomic_coordinates_helper(
       );
     }
 
-    first_time = FALSE;
+    first_time = false;
   }
 
-  BOOLEAN_T found_coordinates = FALSE;
+  bool found_coordinates = false;
 
   // Try UCSC style first
   status = regexec(&ucsc_header_regex, header, NUM_SUBMATCHES, matches, 0);
@@ -321,11 +321,20 @@ BOOLEAN_T parse_genomic_coordinates_helper(
   if(!status) {
 
     // The sequence header contains genomic coordinates
-    found_coordinates = TRUE;
+    found_coordinates = true;
 
     // Get chromosome name (required)
-    char buffer[BUFFER_SIZE];
+    char buffer[CN_BUFFER_SIZE];
     int chr_name_len = matches[1].rm_eo - matches[1].rm_so;
+    if (chr_name_len >= CN_BUFFER_SIZE) {
+      chr_name_len = CN_BUFFER_SIZE-1;
+      fprintf(stderr,
+        "Warning: truncating chromosome name to %d characters. \n"
+        "  Old: %s\n"
+        "  New: %*.*s\n",
+        chr_name_len, header + matches[1].rm_so, chr_name_len, chr_name_len, header + matches[1].rm_so
+      );
+    }
     strncpy(buffer, header + matches[1].rm_so, chr_name_len);
     buffer[chr_name_len] = 0;
     char *chr_name = strdup(buffer);
@@ -366,7 +375,7 @@ BOOLEAN_T parse_genomic_coordinates_helper(
 
   #undef NUM_SUBMATCHES
   #undef ERROR_MESSAGE_SIZE
-  #undef BUFFER_SIZE
+  #undef CN_BUFFER_SIZE
 }
 
 /******************************************************************************
@@ -374,24 +383,24 @@ BOOLEAN_T parse_genomic_coordinates_helper(
  * current sequence header. The sequence name is the string up to the first
  * white space in the sequence header.
  *
- * Returns TRUE if it was able to genomic coordinates, FALSE otherwise.
+ * Returns true if it was able to genomic coordinates, false otherwise.
  *****************************************************************************/
-static BOOLEAN_T parse_seq_name(
+static bool parse_seq_name(
   SEQ_READER_FROM_FASTA_T *fasta_reader
 ) {
 
   #define NUM_SUBMATCHES 2
   #define ERROR_MESSAGE_SIZE 100
-  #define BUFFER_SIZE 512
+  #define SN_BUFFER_SIZE 512
 
-  static BOOLEAN_T first_time = TRUE;
+  static bool first_time = true;
   static regex_t ucsc_header_regex;
   static regmatch_t matches[NUM_SUBMATCHES];
 
   char error_message[ERROR_MESSAGE_SIZE];
   int status = 0;
 
-  if (first_time == TRUE) {
+  if (first_time == true) {
     // Initialize regular express for extracting chromsome coordinates;
     // Expected format is based on fastaFromBed name:start-stop[(+|-)][_id]
     // e.g., ">chr1:1000-1010(-)_xyz"
@@ -412,10 +421,10 @@ static BOOLEAN_T parse_seq_name(
       );
     }
 
-    first_time = FALSE;
+    first_time = false;
   }
 
-  BOOLEAN_T found_name = FALSE;
+  bool found_name = false;
   char* header = fasta_reader->seq_header;
   status = regexec(
     &ucsc_header_regex, 
@@ -424,13 +433,22 @@ static BOOLEAN_T parse_seq_name(
     matches, 
     0
   );
-  if(!status) {
+  if (!status) {
     // The sequence header contains genomic coordinates
-    found_name = TRUE;
+    found_name = true;
 
     // Copy sequence name to reader
-    char buffer[BUFFER_SIZE];
+    char buffer[SN_BUFFER_SIZE];
     int name_len = matches[1].rm_eo - matches[1].rm_so;
+    if (name_len >= SN_BUFFER_SIZE) {
+      name_len = SN_BUFFER_SIZE-1;
+      fprintf(stderr,
+        "Warning: truncating FASTA sequence ID to %d characters. \n"
+        "  Old: %s\n"
+        "  New: %*.*s\n",
+        name_len, header + matches[1].rm_so, name_len, name_len, header + matches[1].rm_so
+      );
+    }
     strncpy(buffer, header + matches[1].rm_so, name_len);
     buffer[name_len] = 0;
     if (fasta_reader->seq_name) {
@@ -452,14 +470,14 @@ static BOOLEAN_T parse_seq_name(
     );
   }
   else {
-    found_name = FALSE;
+    found_name = false;
   }
 
   return found_name;
 
   #undef NUM_SUBMATCHES
   #undef ERROR_MESSAGE_SIZE
-  #undef BUFFER_SIZE
+  #undef SN_BUFFER_SIZE
 }
 
 
@@ -468,15 +486,15 @@ static BOOLEAN_T parse_seq_name(
  * The current position is assumed to be start of a new sequence.
  * Read from the current position to the end of the current line.
  *
- * Returns TRUE if it was able to read the sequence text, FALSE if 
+ * Returns true if it was able to read the sequence text, false if 
  * EOF reached before the terminal newline was found. Dies if other errors
  * are encountered.
  *****************************************************************************/
-BOOLEAN_T read_seq_header_from_seq_reader_from_fasta(
+bool read_seq_header_from_seq_reader_from_fasta(
   SEQ_READER_FROM_FASTA_T *fasta_reader
 ) {
 
-  int result = FALSE;
+  int result = false;
 
   // Initial allocation of sequence buffer
   const size_t initial_buffer_len = 100;
@@ -504,12 +522,16 @@ BOOLEAN_T read_seq_header_from_seq_reader_from_fasta(
       // Found EOL
       fasta_reader->seq_header[seq_index] = '\0';
       fasta_reader->seq_header_len = seq_index + 1;
-      fasta_reader->at_start_of_line = TRUE;
-      result = TRUE;
+      fasta_reader->at_start_of_line = true;
+      result = true;
       break;
     }
     else {
       // Keep looking for EOL
+      //if (c > 127) {
+      //  fprintf(stderr, "FASTA sequence header contains the non-ASCII character code %d; converted to '_'\n", c);
+      //  c = '_';
+      //}
       fasta_reader->seq_header[seq_index] = c;
       ++seq_index;
     }
@@ -542,22 +564,22 @@ BOOLEAN_T read_seq_header_from_seq_reader_from_fasta(
  * reader. The name of the sequence is passed using the name parameter.
  * The caller is responsible for freeing the memory for the sequence name.
  *
- * Returns TRUE if successful, FALSE if there is no current sequence, as 
+ * Returns true if successful, false if there is no current sequence, as 
  * at the start of the file.
  *****************************************************************************/
-BOOLEAN_T get_seq_name_from_seq_reader_from_fasta(
+bool get_seq_name_from_seq_reader_from_fasta(
   DATA_BLOCK_READER_T *reader, 
   char **name // OUT
 ) {
-  BOOLEAN_T result = FALSE;
+  bool result = false;
   SEQ_READER_FROM_FASTA_T *fasta_reader 
     = (SEQ_READER_FROM_FASTA_T *) get_data_block_reader_data(reader);
   if (fasta_reader->seq_name == NULL || fasta_reader->seq_name_len <= 0) {
-    result = FALSE;
+    result = false;
   }
   else {
     *name = strdup(fasta_reader->seq_name);
-    result = TRUE;
+    result = true;
   }
 
   return result;
@@ -567,45 +589,45 @@ BOOLEAN_T get_seq_name_from_seq_reader_from_fasta(
  * Read from the current position in the file to the first symbol after the
  * start of the next sequence. Set the value of the current sequence.
  *
- * Returns TRUE if it was able to advance to the next sequence, FALSE if 
+ * Returns true if it was able to advance to the next sequence, false if 
  * EOF reached before the next sequence was found. Dies if other errors
  * encountered.
  *****************************************************************************/
-BOOLEAN_T go_to_next_sequence_in_seq_reader_from_fasta(DATA_BLOCK_READER_T *reader) {
-  BOOLEAN_T result = FALSE;
+bool go_to_next_sequence_in_seq_reader_from_fasta(DATA_BLOCK_READER_T *reader) {
+  bool result = false;
   SEQ_READER_FROM_FASTA_T *fasta_reader 
     = (SEQ_READER_FROM_FASTA_T *) get_data_block_reader_data(reader);
   fasta_reader->current_position = 0;
   int c = 0;
   while((c = fgetc(fasta_reader->fasta_file)) != EOF) {
-    if (fasta_reader->at_start_of_line == TRUE && c == '>') {
+    if (fasta_reader->at_start_of_line == true && c == '>') {
       break;
     }
     else if (c == '\n') {
-      fasta_reader->at_start_of_line = TRUE;
+      fasta_reader->at_start_of_line = true;
     }
     else {
-      fasta_reader->at_start_of_line = FALSE;
+      fasta_reader->at_start_of_line = false;
     }
   }
   // At this point c is '>' or EOF
   if (c == '>') {
-    BOOLEAN_T found_genomic_coordinates = FALSE;
-    fasta_reader->at_end_of_seq = FALSE;
+    bool found_genomic_coordinates = false;
+    fasta_reader->at_end_of_seq = false;
     fasta_reader->seq_buffer_index = 0;
     fasta_reader->seq_buffer_last = 0;
-    memset(fasta_reader->seq_buffer, 0, BUFFER_SIZE);
+    memset(fasta_reader->seq_buffer, 0, SEQ_BUFFER_SIZE);
     result = read_seq_header_from_seq_reader_from_fasta(fasta_reader);
-    if (result == TRUE && fasta_reader->parse_genomic_coord == TRUE) {
+    if (result == true && fasta_reader->parse_genomic_coord == true) {
       // Look for genomic coordinates in header
       found_genomic_coordinates = parse_genomic_coordinates(fasta_reader);
     }
-    if (found_genomic_coordinates == FALSE) {
+    if (found_genomic_coordinates == false) {
       //  Look for whitespace in header
       //  The sequence name is the string before the white space.
-      BOOLEAN_T found_name = FALSE;
+      bool found_name = false;
       found_name = parse_seq_name(fasta_reader);
-      if (found_name == FALSE) {
+      if (found_name == false) {
         die(
             "Unable to find sequence name in header %s.\n",
             fasta_reader->seq_header
@@ -623,7 +645,7 @@ BOOLEAN_T go_to_next_sequence_in_seq_reader_from_fasta(DATA_BLOCK_READER_T *read
     }
     else if (feof(fasta_reader->fasta_file)) {
         // Reached EOF before reaching the start of the sequence
-        result = FALSE;
+        result = false;
     }
   }
   return result;
@@ -666,7 +688,7 @@ void read_one_fasta_segment_from_reader(
 
   // Read a block of sequence charaters into the
   // raw sequence buffer for the SEQ_T, starting at offset.
-  BOOLEAN_T is_complete = read_raw_sequence_from_reader(
+  bool is_complete = read_raw_sequence_from_reader(
     fasta_reader,
     max_size - offset,
     raw_sequence + offset
@@ -680,7 +702,7 @@ void read_one_fasta_segment_from_reader(
  *
  * Return: Was the sequence read completely?
  ****************************************************************************/
-BOOLEAN_T read_raw_sequence_from_reader(
+bool read_raw_sequence_from_reader(
    DATA_BLOCK_READER_T *reader, // Sequence source
    unsigned int max_chars, // Maximum chars in raw_sequence.
    char* raw_sequence // Pre-allocated sequence buffer.
@@ -706,7 +728,7 @@ BOOLEAN_T read_raw_sequence_from_reader(
     total_read += num_char_read;
 
     if (feof(fasta_reader->fasta_file)) {
-       fasta_reader->at_end_of_file = TRUE;
+       fasta_reader->at_end_of_file = true;
     }
     else if (num_char_read < (max_chars - seq_index)) {
       die(
@@ -724,19 +746,19 @@ BOOLEAN_T read_raw_sequence_from_reader(
         // Skip over white space
         fasta_reader->at_start_of_line = (c == '\n');
       }
-      else if (c == '>' && fasta_reader->at_start_of_line == TRUE) {
+      else if (c == '>' && fasta_reader->at_start_of_line == true) {
         // We found the start of a new sequence while trying
         // to fill the buffer. Leave the buffer incomplete.
         // and wind back the file
         fseek(fasta_reader->fasta_file, start_file_pos + i - 1, SEEK_SET);
         fasta_reader->current_position = start_file_pos + i - 1;
-        fasta_reader->at_end_of_seq = TRUE;
-        fasta_reader->at_start_of_line = FALSE;
-        fasta_reader->at_end_of_file = FALSE;
+        fasta_reader->at_end_of_seq = true;
+        fasta_reader->at_start_of_line = false;
+        fasta_reader->at_end_of_file = false;
         break;
       }
       else {
-        fasta_reader->at_start_of_line = FALSE;
+        fasta_reader->at_start_of_line = false;
         // Check that character is legal in alphabet. 
         // If not, replace with wild card character.
         if (alph_is_known(fasta_reader->alphabet, c)) {
@@ -774,11 +796,11 @@ BOOLEAN_T read_raw_sequence_from_reader(
  * On successive calls, the sequence pointer in the block is shifted down one position
  * in the buffer. When the end of the buffer is reached, it is filled again from the file.
  * 
- * Returns TRUE if it was able to completely fill the block, FALSE if 
+ * Returns true if it was able to completely fill the block, false if 
  * the next sequence or EOF was reached before the block was filled.
  * Dies if other errors encountered.
  *****************************************************************************/
-BOOLEAN_T get_next_data_block_from_seq_reader_from_fasta(
+bool get_next_data_block_from_seq_reader_from_fasta(
   DATA_BLOCK_READER_T *reader, 
   DATA_BLOCK_T *data_block
 ) {
@@ -800,14 +822,14 @@ BOOLEAN_T get_next_data_block_from_seq_reader_from_fasta(
     ++fasta_reader->seq_buffer_index;
     ++fasta_reader->current_position;
     set_start_pos_for_data_block(data_block, fasta_reader->current_position);
-    return TRUE;
+    return true;
   }
 
   int num_char_to_read;
   if (fasta_reader->seq_buffer_last == 0) {
     // Seq buffer is completely empty
     fasta_reader->seq_buffer_index = 0;
-    num_char_to_read = BUFFER_SIZE;
+    num_char_to_read = SEQ_BUFFER_SIZE;
   }
   else if (!fasta_reader->at_end_of_seq && !fasta_reader->at_end_of_file) {
     // At the end of the seq buffer. Copy the last data block's worth
@@ -819,14 +841,14 @@ BOOLEAN_T get_next_data_block_from_seq_reader_from_fasta(
     );
     fasta_reader->seq_buffer_index = 0;
     fasta_reader->seq_buffer_last = w;
-    num_char_to_read = BUFFER_SIZE - w;
+    num_char_to_read = SEQ_BUFFER_SIZE - w;
   }
 
   int num_copied = 0;
   if (!fasta_reader->at_end_of_seq && !fasta_reader->at_end_of_file) {
 
     // Read more sequence into the tmp buffer from the sequence file.
-    char raw_buffer[BUFFER_SIZE];
+    char raw_buffer[SEQ_BUFFER_SIZE];
     long start_file_pos = ftell(fasta_reader->fasta_file);
     size_t num_char_read = fread(
       raw_buffer,
@@ -836,7 +858,7 @@ BOOLEAN_T get_next_data_block_from_seq_reader_from_fasta(
     );
 
     if (feof(fasta_reader->fasta_file)) {
-       fasta_reader->at_end_of_file = TRUE;
+       fasta_reader->at_end_of_file = true;
     }
     else if (num_char_read < num_char_to_read) {
       die(
@@ -854,24 +876,24 @@ BOOLEAN_T get_next_data_block_from_seq_reader_from_fasta(
       if (isspace(c)) {
         // Skip over white space
         if (c == '\n') {
-          fasta_reader->at_start_of_line = TRUE;
+          fasta_reader->at_start_of_line = true;
         }
         else {
-          fasta_reader->at_start_of_line = FALSE;
+          fasta_reader->at_start_of_line = false;
         }
       }
-      else if (c == '>' && fasta_reader->at_start_of_line == TRUE) {
+      else if (c == '>' && fasta_reader->at_start_of_line == true) {
         // We found the start of a new sequence while trying
         // to fill the buffer. Leave the buffer incomplete.
         // and wind back the file
         fseek(fasta_reader->fasta_file, start_file_pos + i - 1, SEEK_SET);
-        fasta_reader->at_end_of_seq = TRUE;
-        fasta_reader->at_start_of_line = FALSE;
-        fasta_reader->at_end_of_file = FALSE;
+        fasta_reader->at_end_of_seq = true;
+        fasta_reader->at_start_of_line = false;
+        fasta_reader->at_end_of_file = false;
         break;
       }
       else {
-        fasta_reader->at_start_of_line = FALSE;
+        fasta_reader->at_start_of_line = false;
         // Check that character is legal in alphabet. 
         // If not, replace with wild card character.
         if (alph_is_known(fasta_reader->alphabet, c)) {
@@ -926,7 +948,7 @@ BOOLEAN_T get_next_data_block_from_seq_reader_from_fasta(
      set set top position index
  else if current position in buffer >= (top of buffer  - width of block)
    copy from (top of buffer - width of block + 1) to origin of buffer
-   read (BUFFER_SIZE - width of block) characters from disk into tmp buffer
+   read (SEQ_BUFFER_SIZE - width of block) characters from disk into tmp buffer
    copy number of bytes read from tmp buffer into buffer starting at (origin + width of block)
      if encounter start of new sequence rewind file to point just before new sequence
      don't copy white space
@@ -947,16 +969,16 @@ BOOLEAN_T get_next_data_block_from_seq_reader_from_fasta(
  * On successive calls, shifts the sequence in the block down one position
  * and reads one more character.
  * 
- * Returns TRUE if it was able to completely fill the block, FALSE if 
+ * Returns true if it was able to completely fill the block, false if 
  * the next sequence or EOF was reached before the block was filled.
  * Dies if other errors encountered.
  *****************************************************************************/
-BOOLEAN_T get_next_data_block_from_seq_reader_from_fasta_old(
+bool get_next_data_block_from_seq_reader_from_fasta_old(
   DATA_BLOCK_READER_T *reader, 
   DATA_BLOCK_T *data_block
 ) {
 
-  BOOLEAN_T result = FALSE;
+  bool result = false;
   char *raw_seq = get_sequence_from_data_block(data_block);
   int block_size = get_block_size_from_data_block(data_block);
   int num_read = get_num_read_into_data_block(data_block);
@@ -965,8 +987,8 @@ BOOLEAN_T get_next_data_block_from_seq_reader_from_fasta_old(
     = (SEQ_READER_FROM_FASTA_T *) get_data_block_reader_data(reader);
 
   if (num_read == block_size) {
-    // Block is alread full, shift all elements in the block down by one position
-    // FIXME CEG: Inefficient, replace with circular buffer.
+    // Block is already full, shift all elements in the block down by one position
+    // TODO CEG: Inefficient, replace with circular buffer.
     memmove(raw_seq, raw_seq + 1, block_size - 1);
     num_read = block_size - 1;
     raw_seq[num_read] = 0;
@@ -979,14 +1001,14 @@ BOOLEAN_T get_next_data_block_from_seq_reader_from_fasta_old(
     if (isspace(c)) {
       // Skip over white space
       if (c == '\n') {
-        fasta_reader->at_start_of_line = TRUE;
+        fasta_reader->at_start_of_line = true;
       }
       else {
-        fasta_reader->at_start_of_line = FALSE;
+        fasta_reader->at_start_of_line = false;
       }
       continue;
     }
-    else if (c == '>' && fasta_reader->at_start_of_line == TRUE) {
+    else if (c == '>' && fasta_reader->at_start_of_line == true) {
       // We found the start of a new sequence while trying
       // to fill the block. Leave the block incomplete.
       c = ungetc(c, fasta_reader->fasta_file);
@@ -1020,7 +1042,7 @@ BOOLEAN_T get_next_data_block_from_seq_reader_from_fasta_old(
       ++num_read;
       if (num_read == block_size) {
         // block is full
-        result = TRUE;
+        result = true;
         break;
       }
     }
@@ -1046,14 +1068,14 @@ BOOLEAN_T get_next_data_block_from_seq_reader_from_fasta_old(
  * Sets the state of the reader to the positon before the last data block was
  * read
  * 
- * Returns TRUE if it was able to rewind the reader, FALSE otherwise.
+ * Returns true if it was able to rewind the reader, false otherwise.
  * Dies if other errors encountered.
  *****************************************************************************/
-BOOLEAN_T unget_data_block_from_seq_reader_from_fasta(
+bool unget_data_block_from_seq_reader_from_fasta(
   DATA_BLOCK_READER_T *reader
 ) {
 
-  BOOLEAN_T result = FALSE;
+  bool result = false;
   SEQ_READER_FROM_FASTA_T *fasta_reader 
     = (SEQ_READER_FROM_FASTA_T *) get_data_block_reader_data(reader);
 
@@ -1071,7 +1093,7 @@ BOOLEAN_T unget_data_block_from_seq_reader_from_fasta(
     else {
       --fasta_reader->current_position;
       fasta_reader->prev_block_position = 0;
-      result = TRUE;
+      result = true;
     }
   }
   return result;

@@ -33,22 +33,22 @@ struct data_block_reader {
   // Pointers to implementation specific functions
   void (*free)(DATA_BLOCK_READER_T *reader);
 
-  BOOLEAN_T (*close)(DATA_BLOCK_READER_T *reader);
+  bool (*close)(DATA_BLOCK_READER_T *reader);
 
-  BOOLEAN_T (*reset)(DATA_BLOCK_READER_T *reader);
+  bool (*reset)(DATA_BLOCK_READER_T *reader);
 
-  BOOLEAN_T (*is_eof)(DATA_BLOCK_READER_T *reader);
+  bool (*is_eof)(DATA_BLOCK_READER_T *reader);
 
-  BOOLEAN_T (*get_next_block)(
+  bool (*get_next_block)(
     DATA_BLOCK_READER_T *reader,
     DATA_BLOCK_T *data_block
   );
   
-  BOOLEAN_T (*unget_block)(DATA_BLOCK_READER_T *reader);
+  bool (*unget_block)(DATA_BLOCK_READER_T *reader);
   
-  BOOLEAN_T (*go_to_next_sequence)(DATA_BLOCK_READER_T *reader);
+  bool (*go_to_next_sequence)(DATA_BLOCK_READER_T *reader);
 
-  BOOLEAN_T (*get_seq_name)( DATA_BLOCK_READER_T *reader, char **name);
+  bool (*get_seq_name)( DATA_BLOCK_READER_T *reader, char **name);
 
 };
 
@@ -63,16 +63,16 @@ struct data_block_reader {
 DATA_BLOCK_READER_T *new_data_block_reader(
   void *data,
   void (*free)(DATA_BLOCK_READER_T *reader),
-  BOOLEAN_T (*close)(DATA_BLOCK_READER_T *reader),
-  BOOLEAN_T (*reset)(DATA_BLOCK_READER_T *reader),
-  BOOLEAN_T (*is_eof)(DATA_BLOCK_READER_T *reader),
-  BOOLEAN_T (*get_next_block)(
+  bool (*close)(DATA_BLOCK_READER_T *reader),
+  bool (*reset)(DATA_BLOCK_READER_T *reader),
+  bool (*is_eof)(DATA_BLOCK_READER_T *reader),
+  bool (*get_next_block)(
     DATA_BLOCK_READER_T *reader, 
     DATA_BLOCK_T *data_block 
   ),
-  BOOLEAN_T (*unget_block)(DATA_BLOCK_READER_T *reader),
-  BOOLEAN_T (*go_to_next_sequence)(DATA_BLOCK_READER_T *reader),
-  BOOLEAN_T (*get_seq_name)(
+  bool (*unget_block)(DATA_BLOCK_READER_T *reader),
+  bool (*go_to_next_sequence)(DATA_BLOCK_READER_T *reader),
+  bool (*get_seq_name)(
     DATA_BLOCK_READER_T *reader, 
     char **sequence
   )
@@ -103,6 +103,7 @@ void *get_data_block_reader_data(DATA_BLOCK_READER_T *reader);
 SEQ_T *get_next_seq_from_readers(
   DATA_BLOCK_READER_T *fasta_reader, 
   DATA_BLOCK_READER_T *prior_reader,
+  bool use_default_prior,
   size_t max_size
 );
 
@@ -139,6 +140,7 @@ void get_prior_from_reader(
  ****************************************************************************/
 void read_one_priors_segment_from_reader(
    DATA_BLOCK_READER_T *prior_reader,
+   bool default_prior,
    size_t max_size,
    size_t buffer_offset,
    SEQ_T *sequence

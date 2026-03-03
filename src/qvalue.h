@@ -54,7 +54,7 @@ double estimate_pi_zero
  * good scores first.
  *************************************************************************/
 void verify_sort
-  (BOOLEAN_T good_score_is_low,
+  (bool good_score_is_low,
    char*     array_name,
    ARRAY_T*  my_array);
 
@@ -71,8 +71,8 @@ void verify_sort
  * are avilable, then we can't estimate pi0, and simply use pi0 = 1.0.
  *************************************************************************/
 void compute_qvalues(
-  BOOLEAN_T compute_fdr,      // If true, only compute FDR, not q-value.
-  BOOLEAN_T use_pi_zero,      // Estimate pi_zero; else just use 1.0.
+  bool compute_fdr,      // If true, only compute FDR, not q-value.
+  bool use_pi_zero,      // Estimate pi_zero; else just use 1.0.
   char*     pi_zero_filename, // Filename to store pi-zero estimate in.
   int       num_bootstraps,   // How many bootstraps to perform.
   int       num_bootstrap_samples, // Number of p-values in each bootstrap.
@@ -93,7 +93,7 @@ void compute_qvalues(
  * NOTE: This function is only exported for use by the unit testing procedures.
  *****************************************************************************/
 void convert_scores_to_pvalues
-  (BOOLEAN_T good_score_is_low,
+  (bool good_score_is_low,
    ARRAY_T* observed_scores, 
    ARRAY_T* null_scores);
 #endif

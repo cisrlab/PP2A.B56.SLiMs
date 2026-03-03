@@ -40,6 +40,7 @@ typedef struct matched_element MATCHED_ELEMENT_T;
 **********************************************************************/
 CISML_T *allocate_cisml(
   const char *program_name,
+  const char *command_line,
   const char *pattern_file,
   const char *sequence_file
 );
@@ -57,6 +58,13 @@ void free_cisml(CISML_T *cisml);
   Gets the program_name member from a cisml object.
 **********************************************************************/
 char *get_cisml_program_name(CISML_T *cisml);
+
+/**********************************************************************
+  get_cisml_command_line
+
+  Gets the command_line member in a cisml object.
+**********************************************************************/
+char *get_cisml_command_line(CISML_T *cisml);
 
 /**********************************************************************
   get_cisml_pattern_file
@@ -110,7 +118,7 @@ void clear_cisml_pattern_pvalue_cutoff(CISML_T *cisml);
 
   Does a cisml object have a pattern_pvalue_cutoff?
 **********************************************************************/
-BOOLEAN_T has_cisml_pattern_pvalue_cutoff(CISML_T *cisml);
+bool has_cisml_pattern_pvalue_cutoff(CISML_T *cisml);
 
 /**********************************************************************
   get_cisml_pattern_pvalue_cutoff
@@ -142,7 +150,7 @@ void clear_cisml_sequence_pvalue_cutoff(CISML_T *cisml);
 
   Does a cisml object have a sequence_pvalue_cutoff?
 **********************************************************************/
-BOOLEAN_T has_cisml_sequence_pvalue_cutoff(CISML_T *cisml);
+bool has_cisml_sequence_pvalue_cutoff(CISML_T *cisml);
 
 /**********************************************************************
   get_cisml_sequence_pvalue_cutoff
@@ -151,6 +159,13 @@ BOOLEAN_T has_cisml_sequence_pvalue_cutoff(CISML_T *cisml);
   Defaults to 1.0 if the sequence p-value cutoff has not been set.
 **********************************************************************/
 double get_cisml_sequence_pvalue_cutoff(CISML_T *cisml);
+
+/**********************************************************************
+  get_cisml_num_passing_cuttoff
+
+  Returns the number of matches passing the significance cuttoff
+**********************************************************************/
+int get_cisml_num_passing_cutoff(CISML_T *cisml);
 
 /**********************************************************************
   set_cisml_site_pvalue_cutoff
@@ -171,7 +186,7 @@ void clear_cisml_site_pvalue_cutoff(CISML_T *cisml);
 
   Does a cisml object have a pattern_pvalue_cutoff?
 **********************************************************************/
-BOOLEAN_T has_cisml_site_pvalue_cutoff(CISML_T *cisml);
+bool has_cisml_site_pvalue_cutoff(CISML_T *cisml);
 
 /**********************************************************************
   get_cisml_site_pvalue_cutoff
@@ -200,7 +215,7 @@ void clear_cisml_site_qvalue_cutoff(CISML_T *cisml);
 
   Does a cisml object have a site_qvalue_cutoff?
 **********************************************************************/
-BOOLEAN_T has_cisml_site_qvalue_cutoff(CISML_T *cisml);
+bool has_cisml_site_qvalue_cutoff(CISML_T *cisml);
 
 /**********************************************************************
   get_cisml_site_qvalue_cutoff
@@ -325,7 +340,7 @@ void set_multi_pattern_score(MULTI_PATTERN_T *multi_pattern, double score);
 
   Does a multi_pattern object have a score?
 **********************************************************************/
-BOOLEAN_T has_multi_pattern_score(MULTI_PATTERN_T *multi_pattern);
+bool has_multi_pattern_score(MULTI_PATTERN_T *multi_pattern);
 
 /**********************************************************************
   clear_multi_pattern_score
@@ -353,7 +368,7 @@ void set_multi_pattern_pvalue(MULTI_PATTERN_T *multi_pattern, double pvalue);
 
   Does a multi_pattern object have a pvalue?
 **********************************************************************/
-BOOLEAN_T has_multi_pattern_pvalue(MULTI_PATTERN_T *multi_pattern);
+bool has_multi_pattern_pvalue(MULTI_PATTERN_T *multi_pattern);
 
 /**********************************************************************
   clear_multi_pattern_pvalue
@@ -505,11 +520,11 @@ void add_pattern_elements_to_scanned_seq(PATTERN_T *pattern);
   if it's greater the pvalues we've already thrown away, we refuse to
   add it. Also, check max_stored_matches. If we've
   hit the limit, purge the heap of the least significian matched elements.
-  Set to FALSE the Boolean that indicates that set of matched elements
+  Set to false the Boolean that indicates that set of matched elements
   is complete.
 
 **********************************************************************/
-BOOLEAN_T add_pattern_matched_element(
+bool add_pattern_matched_element(
   PATTERN_T *pattern,
   MATCHED_ELEMENT_T *element
 );
@@ -524,9 +539,9 @@ BOOLEAN_T add_pattern_matched_element(
 
   It fails if the new max is smaller than the current max_stored_matches.
 
-  Returns TRUE if successful, FALSE otherwise.
+  Returns true if successful, false otherwise.
 **********************************************************************/
-BOOLEAN_T set_pattern_max_stored_matches(PATTERN_T *pattern, int max);
+bool set_pattern_max_stored_matches(PATTERN_T *pattern, int max);
 
 /**********************************************************************
   set_pattern_max_pvalue_retained
@@ -560,7 +575,7 @@ int get_pattern_num_stored_matches(PATTERN_T *pattern);
   longer available and all matched elements are stored in an array
   of matched element pointers, sorted by p-value.
 **********************************************************************/
-BOOLEAN_T get_pattern_is_complete(PATTERN_T *pattern);
+bool get_pattern_is_complete(PATTERN_T *pattern);
 
 /**********************************************************************
   set_pattern_is_complete
@@ -614,7 +629,7 @@ void clear_pattern_pvalue(PATTERN_T *pattern);
 
   Does a pattern object have a pvalue?
 **********************************************************************/
-BOOLEAN_T has_pattern_pvalue(PATTERN_T *pattern);
+bool has_pattern_pvalue(PATTERN_T *pattern);
 
 /**********************************************************************
   get_pattern_pvalue
@@ -628,7 +643,7 @@ double get_pattern_pvalue(PATTERN_T* pattern);
 
   Does the matched-elements for the pattern have qvalues available?
 **********************************************************************/
-BOOLEAN_T has_pattern_qvalues(PATTERN_T *pattern);
+bool has_pattern_qvalues(PATTERN_T *pattern);
 
 /**********************************************************************
   set_pattern_score
@@ -649,7 +664,7 @@ void clear_pattern_pvalue(PATTERN_T *pattern);
 
   Does a pattern object have a score?
 **********************************************************************/
-BOOLEAN_T has_pattern_score(PATTERN_T *pattern);
+bool has_pattern_score(PATTERN_T *pattern);
 
 /**********************************************************************
   get_pattern_score
@@ -725,6 +740,11 @@ MATCHED_ELEMENT_T **get_pattern_stored_matches(PATTERN_T *pattern);
   pattern object.
 **********************************************************************/
 MATCHED_ELEMENT_T **get_pattern_matched_elements(PATTERN_T *pattern);
+
+/*************************************************************************
+ * Find the best site for each sequence and mark the matches.
+ *************************************************************************/
+void pattern_find_best_site(PATTERN_T *pattern);
 
 /*************************************************************************
  * Calculate the q-values for each matched-element in this pattern
@@ -817,7 +837,7 @@ void clear_scanned_sequence_pvalue(SCANNED_SEQUENCE_T *scanned_sequence);
 
   Does a scanned_sequence object have a pvalue?
 **********************************************************************/
-BOOLEAN_T has_scanned_sequence_pvalue(SCANNED_SEQUENCE_T *scanned_sequence);
+bool has_scanned_sequence_pvalue(SCANNED_SEQUENCE_T *scanned_sequence);
 
 /**********************************************************************
   get_scanned_sequence_pvalue
@@ -848,7 +868,7 @@ void clear_scanned_sequence_score(SCANNED_SEQUENCE_T *scanned_sequence);
 
   Does a scanned_sequence object have a score?
 **********************************************************************/
-BOOLEAN_T has_scanned_sequence_score(SCANNED_SEQUENCE_T *scanned_sequence);
+bool has_scanned_sequence_score(SCANNED_SEQUENCE_T *scanned_sequence);
 
 /**********************************************************************
   get_scanned_sequence_score
@@ -879,7 +899,7 @@ void clear_scanned_sequence_length(SCANNED_SEQUENCE_T *scanned_sequence);
 
   Does a scanned_sequence object have a length?
 **********************************************************************/
-BOOLEAN_T has_scanned_sequence_length(SCANNED_SEQUENCE_T *scanned_sequence);
+bool has_scanned_sequence_length(SCANNED_SEQUENCE_T *scanned_sequence);
 
 /**********************************************************************
   get_scanned_sequence_length
@@ -902,6 +922,13 @@ void set_scanned_sequence_db(SCANNED_SEQUENCE_T *scanned_sequence, char *db);
   May return NULL.
 **********************************************************************/
 char *get_scanned_sequence_db(SCANNED_SEQUENCE_T* scanned_sequence);
+
+/**********************************************************************
+  get_scanned_sequence_uid
+
+  Gets the unique numeric identifier from a cisml scanned_sequence object.
+**********************************************************************/
+long get_scanned_sequence_uid(SCANNED_SEQUENCE_T* scanned_sequence);
 
 /**********************************************************************
   set_scanned_sequence_lsid
@@ -1048,6 +1075,13 @@ MATCHED_ELEMENT_T *allocate_matched_element_with_score(
 void free_matched_element(MATCHED_ELEMENT_T *element);
 
 /**********************************************************************
+  get_matched_element_is_best_site
+
+  Gets if a cisml matched_element object is the best site in the sequence.
+**********************************************************************/
+bool get_matched_element_is_best_site(MATCHED_ELEMENT_T* element);
+
+/**********************************************************************
   get_matched_element_start
 
   Gets the start member from a cisml matched_element object.
@@ -1060,8 +1094,6 @@ int get_matched_element_start(MATCHED_ELEMENT_T* matched_element);
   Sets the start member from a cisml matched_element object.
 **********************************************************************/
 void set_matched_element_start(MATCHED_ELEMENT_T* matched_element, int newstart);
-
-
 
 /**********************************************************************
   get_matched_element_stop
@@ -1092,7 +1124,7 @@ void set_matched_element_score(
 
   Does a matched_element object have a score?
 **********************************************************************/
-BOOLEAN_T has_matched_element_score(MATCHED_ELEMENT_T *element);
+bool has_matched_element_score(MATCHED_ELEMENT_T *element);
 
 /**********************************************************************
   get_matched_element_score
@@ -1116,7 +1148,7 @@ void set_matched_element_pvalue(
 
   Does a matched_element object have a pvalue?
 **********************************************************************/
-BOOLEAN_T has_matched_element_pvalue(MATCHED_ELEMENT_T *element);
+bool has_matched_element_pvalue(MATCHED_ELEMENT_T *element);
 
 /**********************************************************************
   get_matched_element_pvalue
@@ -1130,7 +1162,7 @@ double get_matched_element_pvalue(MATCHED_ELEMENT_T* element);
 
   Does a matched_element object have a qvalue?
 **********************************************************************/
-BOOLEAN_T has_matched_element_qvalue(MATCHED_ELEMENT_T *element);
+bool has_matched_element_qvalue(MATCHED_ELEMENT_T *element);
 
 /**********************************************************************
   get_matched_element_qvalue
@@ -1204,7 +1236,7 @@ void set_matched_element_sequence(MATCHED_ELEMENT_T* element, char *seq);
  * because I needed the matched elements sorted for the BLS implementation
  *************************************************************************/
 void sort_matched_elements(
-  BOOLEAN_T sort_by_pvalue,
+  bool sort_by_pvalue,
   int num_elements,
   MATCHED_ELEMENT_T **elements
 );
@@ -1217,9 +1249,9 @@ void sort_matched_elements(
 void print_cisml_start(
   FILE* out, 
   char *program_name, 
-  BOOLEAN_T print_header,
+  bool print_header,
   const char *stylesheet, 
-  BOOLEAN_T print_namespace
+  bool print_namespace
 );
 
 /**********************************************************************
@@ -1244,9 +1276,9 @@ void print_cisml_parameters(FILE *out, CISML_T *cisml);
 void print_cisml(
 		FILE* out,                /* The target file IN */
 		CISML_T *cisml,           /* The cisml data structure to save IN */
-		BOOLEAN_T print_header,   /* FLAG indicates if the header should be printed IN */
+		bool print_header,   /* FLAG indicates if the header should be printed IN */
 		const char *stylesheet,   /* the stylesheet file IN */
-		BOOLEAN_T print_namespace /* FLAG indicates if the namespace should be printed IN */
+		bool print_namespace /* FLAG indicates if the namespace should be printed IN */
 );
 
 /**********************************************************************
@@ -1318,15 +1350,15 @@ bool print_full_results(
   char *html_filename,
   char *text_filename,
   char *gff_filename,
-  BOOLEAN_T allow_clobber,
-  BOOLEAN_T print_namespace
+  bool allow_clobber,
+  bool print_namespace
 );
 
 /**********************************************************************
  * This function saves the CisML results as a set of files in a
  * directory. The files include:
  *   fimo.xml which uses the CisML schema
- *   fimo.txt which uses plain text with tab-delimited columns
+ *   fimo.tsv which uses plain text with tab-delimited columns
  *   fimo.gff which uses the gff file format.
  *********************************************************************/
 bool print_cisml_as_text(CISML_T *cisml);

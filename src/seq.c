@@ -11,7 +11,9 @@
 #include <limits.h>
 #include <string.h>
 #include "alphabet.h"
+#include "macros.h"
 #include "utils.h"
+#include "ushuffle.h"
 #include "seq.h"
 #include <R_ext/Error.h>
 
@@ -28,53 +30,56 @@ struct seq {
   unsigned int length;              // Sequence length.
   unsigned int offset;              // Offset from the start of complete sequence.
   unsigned int starting_coord;      // Starting coord of the start of complete sequence.
-  float weight;                 // Sequence weight.
-  char* sequence;               // The actual sequence.
-  int8_t* isequence;           // indexed sequence
-  int*  intseq;                 // The sequence in integer format.
-  unsigned int num_priors;      // Number of priors
-  double* priors;               // The priors corresponding to the sequence.
-  int*  gc;                     // Cumulative counts of the second complementary pair (G & C in DNA); note: 2Gb size limit.
-  double total_gc;              // Total frequency of the second complementary pair (G & C in DNA) in sequence; Complementary alphabet with exactly 2 pairs only
-  BOOLEAN_T is_complete;        // Is this the end of the sequence?
+  float weight;                     // Sequence weight.
+  bool is_complete;                 // Is this the end of the sequence?
+  unsigned int num_priors;          // Number of priors
+  double total_gc;                  // Total frequency of the second complementary pair (G & C in DNA) in sequence; Complementary alphabet with exactly 2 pairs only
+  char *sequence;                   // The actual sequence.
+  int8_t *isequence;                // indexed sequence
+  int *intseq;                      // The sequence in integer format.
+  int *gc;                          // Cumulative counts of the second complementary pair (G & C in DNA); note: 2Gb size limit.
+  double *priors;                   // The priors corresponding to the sequence.
 };
 
 
 /****************************************************************************
  * Allocate one sequence object.
  ****************************************************************************/
-SEQ_T* allocate_seq
-  (char* name,
-   char* description,
-   unsigned int offset,
-   char* sequence)
-{
+SEQ_T* allocate_seq(
+  char* name,
+  char* description,
+  unsigned int offset,
+  char* sequence
+) {
   SEQ_T* new_sequence;
 
   // Allocate the sequence object.
   new_sequence = (SEQ_T*)mm_malloc(sizeof(SEQ_T));
 
   // Fill in the fields.
-  new_sequence->priors = NULL;
   new_sequence->length = 0;
   new_sequence->offset = offset;
   new_sequence->starting_coord = offset;
+  new_sequence->weight = 1.0;
+  new_sequence->is_complete = false;
+  //new_sequence->num_priors = 0;
+  new_sequence->total_gc = 0;
   new_sequence->sequence = NULL;
   new_sequence->isequence = NULL;
-  new_sequence->weight = 1.0;
   new_sequence->intseq = NULL;
   new_sequence->gc = NULL;
-  new_sequence->num_priors = 0;
-  new_sequence->is_complete = FALSE;
+  new_sequence->priors = NULL;
 
   // Store the name, truncating if necessary.
   new_sequence->name[0] = 0;
   if (name != NULL) {
     strncpy(new_sequence->name, name, MAX_SEQ_NAME);
     new_sequence->name[MAX_SEQ_NAME] = '\0';
-    if (strlen(new_sequence->name) != strlen(name)) {
-      fprintf(stderr, "Warning: truncating sequence ID %s to %s.\n",
-          name, new_sequence->name);
+    if (verbosity >= NORMAL_VERBOSE) {
+      if (strlen(new_sequence->name) != strlen(name)) {
+	fprintf(stderr, "Warning: truncating sequence ID %s to %s.\n",
+	    name, new_sequence->name);
+      }
     }
   }
 
@@ -129,7 +134,7 @@ unsigned int get_seq_offset
 }
 
 void set_seq_offset
-  (unsigned int offset,
+  (unsigned int offset, 
    SEQ_T* a_sequence)
 {
   assert(a_sequence != NULL);
@@ -237,7 +242,7 @@ char* get_raw_subsequence
 
 void set_raw_sequence(
   char *raw_sequence,
-  BOOLEAN_T is_complete,
+  bool is_complete,
   SEQ_T* a_sequence
 ) {
   assert(a_sequence != NULL);
@@ -284,16 +289,6 @@ void set_total_gc_sequence
 }
 
 /**************************************************************************
- * Return the number of priors currently stored in the SEQ_T object
- **************************************************************************/
-unsigned int get_seq_num_priors
-  (SEQ_T* a_sequence)
-{
-  assert(a_sequence != NULL);
-  return(a_sequence->num_priors);
-}
-
-/**************************************************************************
  * Return a pointer to the priors associated with a SEQ_T object.
  * It may be a NULL pointer. If it is not NULL the number of priors
  * is the length member of the SEQ_T object.
@@ -310,7 +305,7 @@ double* get_seq_priors
  **************************************************************************/
 void set_seq_priors
   (double *priors,
-  SEQ_T* a_sequence)
+  SEQ_T* a_sequence) 
 {
   assert(a_sequence != NULL);
   a_sequence->priors = priors;
@@ -320,13 +315,11 @@ void set_seq_priors
 /**************************************************************************
  * Copy a sequence object.  Memory must be freed by caller.
  **************************************************************************/
-SEQ_T* copy_sequence
-  (SEQ_T* source_sequence)
+SEQ_T *copy_sequence
+  (SEQ_T *source_sequence)
 {
   // Allocate the sequence object.
-  SEQ_T* new_sequence;
-
-  new_sequence = (SEQ_T*)mm_malloc(sizeof(SEQ_T));
+  SEQ_T* new_sequence = (SEQ_T*)mm_malloc(sizeof(SEQ_T));
 
   // Store the name
   // moving from one buffer to another of identical size so no truncation
@@ -339,16 +332,17 @@ SEQ_T* copy_sequence
   new_sequence->desc[MAX_SEQ_COMMENT] = '\0';
 
   // Fill in the always set fields
-  new_sequence->starting_coord = source_sequence->starting_coord;
   new_sequence->length = source_sequence->length;
   new_sequence->offset = source_sequence->offset;
+  new_sequence->starting_coord = source_sequence->starting_coord;
   new_sequence->weight = source_sequence->weight;
   new_sequence->is_complete = source_sequence->is_complete;
   new_sequence->num_priors = source_sequence->num_priors;
+  new_sequence->total_gc = source_sequence->total_gc;
 
   // copy over the sequence (note that either this or the isequence will be present)
   if (source_sequence->sequence != NULL) {
-    new_sequence->sequence = mm_malloc(sizeof(char) * (source_sequence->length + 1));
+    new_sequence->sequence = (char *)mm_malloc(sizeof(char) * (source_sequence->length + 1));
     memcpy(new_sequence->sequence, source_sequence->sequence, (sizeof(char) * source_sequence->length));
     new_sequence->sequence[source_sequence->length] = '\0';
   } else {
@@ -356,12 +350,12 @@ SEQ_T* copy_sequence
   }
   // copy over the isequence (note that either this or the sequence will be present)
   if (source_sequence->isequence != NULL) {
-    new_sequence->isequence = mm_malloc(sizeof(int8_t) * source_sequence->length);
+    new_sequence->isequence = (int8_t*)mm_malloc(sizeof(int8_t) * source_sequence->length);
     memcpy(new_sequence->isequence, source_sequence->isequence, (sizeof(int8_t) * source_sequence->length));
   } else {
     new_sequence->isequence = NULL;
   }
-  // copy over the int sequence (this may be present, used by mhmm code,
+  // copy over the int sequence (this may be present, used by mhmm code, 
   // required to be int so that hashing of multiple characters can be done)
   if (source_sequence->intseq != NULL) {
     new_sequence->intseq = (int*)mm_malloc(sizeof(int) * source_sequence->length);
@@ -374,11 +368,11 @@ SEQ_T* copy_sequence
     new_sequence->gc = (int*)mm_malloc(sizeof(int) * source_sequence->length);
     memcpy(new_sequence->gc, source_sequence->gc, (sizeof(int) * source_sequence->length));
   } else {
-    source_sequence->gc = NULL;
+    new_sequence->gc = NULL;
   }
   // copy over the priors
   if (source_sequence->priors && source_sequence->num_priors > 0) {
-    new_sequence->priors = mm_malloc(sizeof(double) * source_sequence->num_priors);
+    new_sequence->priors = (double*)mm_malloc(sizeof(double) * source_sequence->num_priors);
     memcpy(new_sequence->priors, source_sequence->priors, (sizeof(double) * source_sequence->num_priors));
   } else {
     new_sequence->priors = NULL;
@@ -389,6 +383,11 @@ SEQ_T* copy_sequence
 /**************************************************************************
  * Convert a sequence to an indexed version. This is a one-way conversion
  * but you can choose to keep the source sequence if you need it
+ *
+ * With no options, ambiguous characters are encoded as numbers > 0, and
+ * any unrecognized letters get encoded the same as the wildcard character.
+ * With SEQ_NOAMBIG, ambiguous characters and unknown characters are encoded
+ * as -1.
  **************************************************************************/
 void index_sequence(SEQ_T* seq, ALPH_T* alph, int options) {
   char *in;
@@ -421,14 +420,14 @@ void index_sequence(SEQ_T* seq, ALPH_T* alph, int options) {
  * sequence object corresponds to the end of the actual sequence.
  **************************************************************************/
 void set_complete
-  (BOOLEAN_T is_complete,
+  (bool is_complete,
    SEQ_T* a_sequence)
 {
   assert(a_sequence != NULL);
   a_sequence->is_complete = is_complete;
 }
 
-BOOLEAN_T is_complete
+bool is_complete
   (SEQ_T* a_sequence)
 {
   assert(a_sequence != NULL);
@@ -478,20 +477,22 @@ void remove_flanking_xs
  *  - computing cumulative GC counts for alphabets with 2 complementary pairs
  *  - if hard_mask is set, replace lower case characters with wildcard
  * In the integer form, each character in the sequence is replaced by
- * the index of that character in the alphabet.
+ * the index of that character in the alphabet. 
  **************************************************************************/
 void prepare_sequence (
-    SEQ_T* sequence,
-    ALPH_T* alph,
-    BOOLEAN_T hard_mask
+  SEQ_T* sequence, 
+  ALPH_T* alph,
+  bool hard_mask
 )
 {
   int i_seq;        // Index in the sequence.
-  int badchar;      // Number of characters converted.
+  int badchar;      // Number of non-alphabetic characters converted.
+  int maskedchar;   // Number of lower-case (masked) characters converted.
   char wildcard;    // Wildcard character
 
   wildcard = alph_wildcard(alph);
   badchar = 0;
+  maskedchar = 0;
 
   for (i_seq = 0; i_seq < get_seq_length(sequence); i_seq++) {
 
@@ -502,15 +503,27 @@ void prepare_sequence (
         fprintf(stderr, "%c -> %c\n", c, wildcard);
       }
       (sequence->sequence)[i_seq] = wildcard;
-      badchar++;
+      if (alph_is_known(alph, c) && hard_mask && islower(c)) {
+        maskedchar++;
+      } else {
+        badchar++;
+      }
     }
   }
 
   // Tell the user about the conversions.
+  if (maskedchar) {
+    if (verbosity >= NORMAL_VERBOSE) {
+      fprintf(stderr, "Warning: converted %d lower-case (masked) ", maskedchar);
+      fprintf(stderr, "characters to %c in sequence %s.\n", wildcard, get_seq_name(sequence));
+    }
+  }
   if (badchar) {
-    fprintf(stderr, "Warning: converted %d non-alphabetic ", badchar);
-    fprintf(stderr, "characters to %c in sequence %s.\n", wildcard,
-        get_seq_name(sequence));
+    if (verbosity >= NORMAL_VERBOSE) {
+      fprintf(stderr, "Warning: converted %d non-alphabetic ", badchar);
+      fprintf(stderr, "characters to %c in sequence %s.\n", wildcard, 
+	get_seq_name(sequence));
+    }
   }
 
   // Add flanking X's.
@@ -519,8 +532,7 @@ void prepare_sequence (
   // Make the integer sequence.
   sequence->intseq = (int *)mm_malloc(sizeof(int) * get_seq_length(sequence));
   for (i_seq = 0; i_seq < get_seq_length(sequence); i_seq++) {
-    (sequence->intseq)[i_seq]
-      = alph_encode(alph, (sequence->sequence)[i_seq]);
+    (sequence->intseq)[i_seq] = alph_encode(alph, (sequence->sequence)[i_seq]);
   }
 
   //
@@ -529,7 +541,7 @@ void prepare_sequence (
   // complementary pair in the alphabet. The alphabet must only have 2
   // pairs so the problem space can be divided up on one dimension.
   //
-  if (alph_size_pairs(alph) == 2) {
+  if (alph_size_pairs(alph) == 2) { 
     int len, x1, x2, y1, y2, a, *gc;
     char *seq;
 
@@ -664,7 +676,7 @@ void set_sequence_weights
 
   /* Read the weights from a file. */
   else {
-    if (open_file(weight_filename, "r", FALSE, "weight", "weights",
+    if (open_file(weight_filename, "r", false, "weight", "weights",
 		  &weight_file) == 0)
       Rf_error("exit:%d", 1);
     read_array(weight_file, weights);
@@ -683,7 +695,6 @@ void set_sequence_weights
   /* Free the weights. */
   free_array(weights);
 }
-
 
 /****************************************************************************
  *  Return an array containing the frequencies in the sequence for each
@@ -732,6 +743,35 @@ ARRAY_T* get_sequence_freqs
 
   return freqs;
 }
+
+/****************************************************************************
+ * Shuffle the letters of a sequence.
+ ****************************************************************************/
+SEQ_T *shuffle_seq (
+  SEQ_T *seq,		// a sequence
+  int kmer,		// preserve the frequencies of words of size kmer
+  int i_copy		// a number to add to the new sequence name
+) {
+
+  assert(i_copy >= 1);
+
+  // Create the new sequence.
+  SEQ_T *new_seq = copy_sequence(seq);
+
+  // Shuffle the  sequence.
+  ushuffle(seq->sequence, new_seq->sequence, seq->length, kmer);
+
+  // Create the new name with the added suffix, shortening if necessary.
+  char *c_shuf = "_shuf_";		
+  int suffix_len = strlen(c_shuf);		// length of shuffled suffix
+  suffix_len += 1; 				// length of dash
+  suffix_len += log(i_copy)/log(10) + 1; 	// number of digits in the copy number
+  int len = strlen(seq->name);			// length of original name
+  int suffix_start = (len + suffix_len <= MAX_SEQ_NAME) ? len : MAX_SEQ_NAME - suffix_len;
+  sprintf(&(new_seq->name[suffix_start]), "%s%-i", c_shuf, i_copy);
+
+  return(new_seq);
+} // shuffle_seq
 
 /****************************************************************************
  * Free one sequence object.

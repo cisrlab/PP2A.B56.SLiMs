@@ -22,6 +22,7 @@
 #include "array.h"       // Routines for floating point arrays.
 #include "alphabet.h"    // The alphabet.
 #include "fasta-io.h"
+#include "binary-search.h"
 #include "pssm.h"        // PSSM routines.
 
 // 2 gives the best speed.
@@ -42,8 +43,8 @@ PSSM_T* allocate_pssm(ALPH_T* alph, int w, int alphsize, int num_gc_bins){
   pssm->alph = alph_hold(alph);
   pssm->w = w;
   pssm->alphsize = alphsize;
-  pssm->matrix_is_log = FALSE;
-  pssm->matrix_is_scaled = FALSE;
+  pssm->matrix_is_log = false;
+  pssm->matrix_is_scaled = false;
   pssm->scale = 0;
   pssm->offset = 0;
   pssm->range = -1;
@@ -108,7 +109,7 @@ static double get_min_pvalue(
   double min_p_value;
 
   // Get the largest score in each row and sum them.
-  assert(pssm->matrix_is_scaled == TRUE);
+  assert(pssm->matrix_is_scaled == true);
   max_score = 0;
   for (i=0; i<r; i++) {
     double large = -BIG;
@@ -353,7 +354,7 @@ void scale_pssm(
   scale_score_matrix(pssm->matrix, pssm->w, pssm->alphsize,
       prior_dist, alpha, range, &(pssm->offset), &(pssm->scale));
   pssm->range = range;
-  pssm->matrix_is_scaled = TRUE;
+  pssm->matrix_is_scaled = true;
 
 } // scale_pssm
 
@@ -592,7 +593,6 @@ void get_pv_lookup_pos_dep(
   ARRAY_T* pv = pssm->pv 
     = get_pdf_table(pssm, background_matrix, scaled_lo_prior_dist);
 
-
   // Get 1-cdf from the pdf.
   for (i=size-2; i>=0; i--) {
     double p_iplus1 = get_array_item(i+1, pv);
@@ -610,8 +610,8 @@ void get_pv_lookup_pos_dep(
  *************************************************************************/
 static void set_up_pssm_and_pvalue(
   double p_threshold,           // Scale/offset PSSM and create table if > 0
-  BOOLEAN_T use_both_strands,   // Compute PSSM for negative strand, too?
-  BOOLEAN_T allow_weak_motifs,  // Allow motifs with min p-value < p_threshold?
+  bool use_both_strands,   // Compute PSSM for negative strand, too?
+  bool allow_weak_motifs,  // Allow motifs with min p-value < p_threshold?
   int      i_state,             // Index of starting state of motif.
   MHMM_T *the_hmm,              // The HMM.
   PRIOR_DIST_T *prior_dist, // Distribution of priors
@@ -647,7 +647,7 @@ static void set_up_pssm_and_pvalue(
 
     // Convert background to non-log form.
     ARRAY_T *background = allocate_array(get_array_length(the_hmm->background));
-    convert_to_from_log_array(FALSE, the_hmm->background, background);
+    convert_to_from_log_array(false, the_hmm->background, background);
 
     // Scale pssm and get p-value table.
     scale_pssm(
@@ -734,10 +734,10 @@ static void set_up_pssm_and_pvalue(
  * See .h file.
  *************************************************************************/
 void set_up_pssms_and_pvalues (
-  BOOLEAN_T motif_scoring,      // Doing motif scoring?
+  bool motif_scoring,      // Doing motif scoring?
   double p_threshold,           // Scale/offset PSSM and create table if > 0
-  BOOLEAN_T use_both_strands,   // Compute negative PSSM?
-  BOOLEAN_T allow_weak_motifs,  // Allow motifs with min p-value < p_threshold?
+  bool use_both_strands,   // Compute negative PSSM?
+  bool allow_weak_motifs,  // Allow motifs with min p-value < p_threshold?
   MHMM_T *the_hmm,
   PRIOR_DIST_T *prior_dist, // Distribution of priors
   double alpha // PSP alpha parameter
@@ -815,27 +815,26 @@ void set_up_pssms_and_pvalues (
  *
  **************************************************************************/
 static void compute_motif_scores (
-  BOOLEAN_T use_pvalues,   // Returns scores as p-values, not log-odds.
-  double    p_threshold,   // Divide p-values by this.
-  int       i_state,       // Index of the start state of the motif.
-  MHMM_T*   the_hmm,       // The HMM, in log form.
-  int*      int_sequence,  // The sequence, in integer format.
-  size_t    seq_length,    // The length of the sequence.
-  double *priors, // Array of priors
-  size_t num_priors, // Number of priors
-  double alpha, // Alpha parameter for calculating prior log odds
-  ARRAY_T*  score_array    // The scores (pre-allocated array).
+  bool use_pvalues,	// Returns scores as p-values, not log-odds.
+  double p_threshold,   // Divide p-values by this.
+  int i_state, 		// Index of the start state of the motif.
+  MHMM_T* the_hmm, 	// The HMM, in log form.
+  int* int_sequence,	// The sequence, in integer format.
+  size_t seq_length,	// The length of the sequence.
+  double *priors,	// Array of priors
+  double alpha,		// Alpha parameter for calculating prior log odds
+  ARRAY_T* score_array	// The scores (pre-allocated array).
 )
 {
   int j, k;
   size_t i;
-  size_t length = seq_length;                              // Length of sequence.
+  size_t length = seq_length;			// Length of sequence.
   PSSM_T *pssm = the_hmm->states[i_state].pssm;
-  MATRIX_T* pssm_matrix = pssm->matrix;        // PSSM for motif.
-  int w = the_hmm->states[i_state].w_motif;             // The motif width.
-  ARRAY_T* pv = pssm->pv;      // Lookup table for p-values.
-  double min_sig_score = the_hmm->states[i_state].min_sig_score; // Smallest significant score.
-  double off = use_pvalues? my_log2(p_threshold) : 0;   // Convert p_threshold to bits.
+  MATRIX_T* pssm_matrix = pssm->matrix;		// PSSM for motif.
+  int w = the_hmm->states[i_state].w_motif;	// The motif width.
+  ARRAY_T* pv = pssm->pv;			// Lookup table for p-values.
+  double min_sig_score = the_hmm->states[i_state].min_sig_score;	// Smallest significant score.
+  double off = use_pvalues? my_log2(p_threshold) : 0;	// Convert p_threshold to bits.
 
   //
   // Score motif at each position it fits.
@@ -844,7 +843,7 @@ static void compute_motif_scores (
   // Last position in sequence is not part of sequence.
   //
   set_array_item(0, 0, score_array);            // Position 0 not part of sequence.
-  for (i=1; i<length-w; i++) {  // motif start
+  for (i=1; length>w && i<length-w; i++) {  	// motif start (size_t is unsigned!)
     int* seq = int_sequence+i;                  // Letter at current position.
     double score = 0;                           // Score for match.
     // i : position in original sequence.
@@ -855,8 +854,8 @@ static void compute_motif_scores (
       score += get_matrix_cell(k, *seq, pssm_matrix);
     }
     if (priors != NULL) {
-      // The sequence has 1 char of padding at begining and end
-      // the priors don't
+      // The sequence has 1 char of padding at beginning and end;
+      // the priors don't.
       double prior = alpha * priors[i - 1];
       if (!isnan(prior)) {
         double log_prior_odds_score = my_log2(prior / (1.0L - prior));
@@ -884,14 +883,13 @@ static void compute_motif_scores (
  * grow if necessary.
  **************************************************************************/
 void compute_motif_score_matrix(
-  BOOLEAN_T  use_pvalues,       // Returns scores as p-values, not log-odds.
-  double     p_threshold,       // Divide p-values by this.
-  int*       int_sequence,      // Sequence as integer indices into alphabet.
-  size_t     seq_length,        // Length of sequence.
-  double *priors, // Priors for sequence
-  size_t num_priors, // Number of priors
-  double alpha, // Alpha parameter for calculating prior log odds
-  MHMM_T*    the_hmm,           // The hmm.
+  bool use_pvalues,		// Returns scores as p-values, not log-odds.
+  double p_threshold,		// Divide p-values by this.
+  int* int_sequence,		// Sequence as integer indices into alphabet.
+  size_t seq_length,		// Length of sequence.
+  double *priors,		// Priors for sequence
+  double alpha,			// Alpha parameter for calculating prior log odds
+  MHMM_T* the_hmm,		// The hmm.
   MATRIX_T** motif_score_matrix
 )
 {
@@ -923,17 +921,17 @@ void compute_motif_score_matrix(
     if (this_state->type == START_MOTIF_STATE) {
 
       // Compute the scores for this motif at all sequence positions.
-      compute_motif_scores(use_pvalues,
-                           p_threshold,
-                           i_state,
-                           the_hmm,
-                           hashed_sequence,
-                           seq_length,
-         priors,
-         num_priors,
-         alpha,
-                           get_matrix_row(this_state->i_motif,
-                                          *motif_score_matrix));
+      compute_motif_scores(
+        use_pvalues,
+	p_threshold,
+	i_state,
+	the_hmm,
+	hashed_sequence,
+	seq_length,
+        priors,
+        alpha,
+        get_matrix_row(this_state->i_motif, *motif_score_matrix)
+      );
     }
   }
 
@@ -958,14 +956,12 @@ PSSM_T* build_motif_pssm(
   ARRAY_T* bg_freqs, // background frequencies b_a for pssm (IN)
   ARRAY_T* pv_bg_freqs, // background frequencies b_a for p-values (IN)
   PRIOR_DIST_T* prior_dist, // Distribution of priors. May be NULL (IN)
-  // Scale factor for non-specific priors. 
-  // Unused if prior_dist is NULL.
-  double alpha, 
+  double alpha, // Scale factor for non-specific priors. Unused if prior_dist is NULL.
   int range, // range of scaled scores is [0..w*range]
   // create pv tables for this number of GC bins
   // instead of using the pv_bg_freqs
   int num_gc_bins, 
-  BOOLEAN_T no_log // make likelihood ratio pssm
+  bool no_log // make likelihood ratio 
 )
 {
   assert(motif != NULL);
@@ -980,8 +976,8 @@ PSSM_T* build_motif_pssm(
   const int w = get_motif_length(motif) - trim_left - trim_right;
 
   PSSM_T* pssm = allocate_pssm(alph, w, a_size, num_gc_bins);
-  pssm->matrix_is_log = TRUE;
-  pssm->matrix_is_scaled = TRUE;
+  pssm->matrix_is_log = no_log ? false : true;
+  pssm->matrix_is_scaled = true;
 
   // Process in column major order to avoid re-calculating bg_likelihood
   MATRIX_T* saved_pssm_matrix = NULL;
@@ -1045,7 +1041,7 @@ PSSM_T* build_motif_pssm(
       set_array_item(y1, pair_prob/2.0, bg);
       set_array_item(y2, pair_prob/2.0, bg);
       // Extend the distribution to account for ambiguous characters.
-      calc_ambigs(alph, FALSE, bg);
+      calc_ambigs(alph, false, bg);
       int min_score = i_gc_bin==0 ? 0 : pssm->min_score;
       get_pv_lookup(pssm, bg, scaled_lo_prior_dist);
       pssm->gc_pv[i_gc_bin] = pssm->pv;
@@ -1061,7 +1057,19 @@ PSSM_T* build_motif_pssm(
   if (no_log) { 
     copy_matrix(saved_pssm_matrix, pssm->matrix);
     free_matrix(saved_pssm_matrix);
-  }
+    pssm->matrix_is_scaled = false;
+    pssm->nolog_max_score = 1;
+    // Get the largest score in each row and multiply them.
+    int i, j;
+    for (i=0; i<pssm->w; i++) {
+      double large = -BIG;
+      for (j=0; j<pssm->alphsize; j++) {
+	double x = get_matrix_cell(i, j, pssm->matrix);
+	large = MAX(large, x);
+      }
+      pssm->nolog_max_score *= large;
+    }
+  } // no_log
 
   return pssm;
 }
@@ -1090,8 +1098,9 @@ PSSM_T* build_matrix_pssm(
 
   // create the pssm
   PSSM_T* pssm = allocate_pssm(alphabet, w, asize, 0);
-  pssm->matrix_is_log = TRUE;
-  copy_matrix(matrix, pssm->matrix); //FIXME what if the matrix is too large because of ambiguous characters?!
+  pssm->matrix_is_log = true;
+  //TODO what if the matrix is too large because of ambiguous characters?!
+  copy_matrix(matrix, pssm->matrix); 
 
   // Scale the pssm and set the scale and offset in the PSSM object.
   if (range > 0) {
@@ -1142,6 +1151,7 @@ ARRAY_T* average_two_pvs(
     double p1 = get_matrix_cell(r1, s1, n_pv_lookup) - get_matrix_cell(r1, s1+1, n_pv_lookup); 
     if (p1 == 0) continue;
     double ama1 = get_array_item(s1, scaled_to_ama);
+    if (ama1 == 0) ama1 = SMALL_POS;
     //for (s2=min_score; s2<ncols-1; s2++) {
     // Only do above the diagonal to save time if convolving a row with itself.
     for (s2 = (r1==r2 ? s1 : min_score); s2 < ncols-1; s2++) {
@@ -1150,6 +1160,7 @@ ARRAY_T* average_two_pvs(
       if (p2 == 0) continue;
       // convert scaled log scores to ama scores
       double ama2 = get_array_item(s2, scaled_to_ama);
+      if (ama2 == 0) ama2 = SMALL_POS;
       // average the two ama scores
       double ama = (ama1 + ama2)/2;
       // convert new ama score to scaled log score
@@ -1167,7 +1178,7 @@ ARRAY_T* average_two_pvs(
 
   // Convert the PDF to 1-CDF (p-values)
   //printf("pdf: irow %d\n", irow);
-  //print_array(new_pv, 8, 6, TRUE, stdout);
+  //print_array(new_pv, 8, 6, true, stdout);
   int s;
   for (s=ncols-2; s>=min_score; s--) {
     double p_splus1 = get_array_item(s+1, new_pv);
@@ -1236,7 +1247,7 @@ double get_ama_pv(
   int n_1, n_2; 
   int gc_1, gc_2;
   // Sequence length bins:
-  // FIXME: test if linear n-axis better
+  // TODO: test if linear n-axis better
   double seq_n_bin = my_log2(n);        // make n-axis logarithmic
   n_1 = floor(seq_n_bin);
   n_2 = n_1 == seq_n_bin ? n_1 : n_1 + 1;       // avoid making extra table if on boundary
@@ -1417,3 +1428,67 @@ double pssm_best_match_score(
   return get_unscaled_pssm_score(score, pssm);
 }
 
+// Print a PSSM to standard error.
+void print_pssm(
+  PSSM_T* pssm
+)
+{
+  int motif_offset, motif_length, alphabet_index, alphabet_size;
+  // get the motif length
+  motif_length = get_pssm_w(pssm);
+  //get the alphabet length
+  alphabet_size = get_pssm_alphsize(pssm); 
+  fprintf(stderr, "PSSM:\n");
+  for (motif_offset = 0; motif_offset < motif_length; ++motif_offset) {
+    for (alphabet_index = 0; alphabet_index < alphabet_size; ++alphabet_index) {
+      double score = get_matrix_cell(motif_offset, alphabet_index, pssm->matrix);
+      fprintf(stderr, "%.3f ", score);
+    }
+    fprintf(stderr, "\n");
+  }
+  fprintf(stderr, "\n");
+} // print_pssm
+
+// comparator for binary search
+int double_bsearch_compar(
+  const void *key,
+  const void *entry
+) {
+  double sought_pv = *((double*)key);
+  double found_pv = *((double*)entry);
+  if (sought_pv < found_pv) {
+    return +1;
+  } else if (sought_pv > found_pv) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+// Get the unscaled ("raw") score corresponding to a given p-value using binary search.
+double pssm_pvalue_to_score(
+  PSSM_T *pssm,			// a pssm
+  double pvalue			// a p-value
+) 
+{
+  int len = get_pssm_pv_length(pssm);
+  double *pv = mm_malloc(len * sizeof(double));
+
+  // copy the p-values to an array
+  int i;
+  for (i=0; i<len; i++) {
+    pv[i] = get_pssm_pv(i, pssm);
+  }
+  
+  // perform binary search
+  int scaled_score = binary_search(&pvalue, pv, len, sizeof(double), double_bsearch_compar);
+  double unscaled_score = (scaled_score >= 0) ? 
+    pssm_scaled_to_raw(scaled_score, pssm) :
+    pssm_scaled_to_raw(-scaled_score-1, pssm);
+    
+  // free the array
+  myfree(pv);
+
+  // return the unscaled score
+  return(unscaled_score);
+} // pssm_pvalue_to_score

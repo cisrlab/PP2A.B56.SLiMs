@@ -78,7 +78,7 @@ static inline void enforce_state(JSON_EN state, int num, ...) {
     if (state == va_arg(argp, JSON_EN)) return;
   }
   va_end(argp);
-  die("Illegal state.");
+  die("Illegal state in json-writer.");
 }
 
 /*
@@ -101,7 +101,7 @@ static void unwind_stack(JSONWR_T *jsonwr) {
       jsonwr_null_value(jsonwr);
       break;
     default:
-      die("Illegal state.");
+      die("Illegal state in json-writer.");
     }
   }
 }
@@ -388,8 +388,8 @@ JSONWR_T* jsonwr_open(FILE *dest, bool minimize, int min_cols, int tab_cols, int
 void jsonwr_close(JSONWR_T* jsonwr) {
   unwind_stack(jsonwr);
   linklst_destroy_all(jsonwr->stack, free);
-  str_destroy(jsonwr->value_buf, FALSE);
-  str_destroy(jsonwr->line_buf, FALSE);
+  str_destroy(jsonwr->value_buf, false);
+  str_destroy(jsonwr->line_buf, false);
   memset(jsonwr, 0, sizeof(JSONWR_T));
   free(jsonwr);
 }
@@ -813,7 +813,19 @@ void jsonwr_args_prop(JSONWR_T* jsonwr, const char* property, int argc, char** a
   jsonwr_str_value(jsonwr, basename(prog));
   free(prog);
   for (i = 1; i < argc; i++) {
-    jsonwr_str_value(jsonwr, argv[i]);
+    if (strchr(argv[i], ' ')) {
+      // arg contains whitespace, so protect it
+      int len = strlen(argv[i]);
+      char *tmp = mm_malloc(len + 3);
+      tmp[0] = '\'';
+      strcpy(tmp+1, argv[i]);
+      tmp[len+1] = '\'';
+      tmp[len+2] = '\0';
+      jsonwr_str_value(jsonwr, tmp);
+      free(tmp);
+    } else {
+      jsonwr_str_value(jsonwr, argv[i]);
+    }
   }
   jsonwr_end_array_value(jsonwr);
 }

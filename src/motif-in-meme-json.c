@@ -1,5 +1,3 @@
-
-
 #include "json-checker.h"
 #include "alph-in.h"
 #include "linked-list.h"
@@ -50,11 +48,11 @@ struct mhtml2 {
 void mhtml2_verror(void *user_data, char *format, va_list ap) {
   DATA_T *data;
   int len;
-  char dummy[1], *msg;
+  char *msg;
   va_list ap_copy;
   data = (DATA_T*)user_data;
   va_copy(ap_copy, ap);
-  len = vsnprintf(dummy, 1, format, ap_copy);
+  len = vsnprintf(NULL, 0, format, ap_copy);
   va_end(ap_copy);
   msg = mm_malloc(sizeof(char) * (len + 1));
   vsnprintf(msg, len + 1, format, ap);
@@ -72,10 +70,10 @@ static void warning(void *user_data, char *format, ...) {
   DATA_T *data;
   va_list  argp;
   int len;
-  char dummy[1], *msg;
+  char *msg;
   data = (DATA_T*)user_data;
   va_start(argp, format);
-  len = vsnprintf(dummy, 1, format, argp);
+  len = vsnprintf(NULL, 0, format, argp);
   va_end(argp);
   msg = mm_malloc(sizeof(char) * (len + 1));
   va_start(argp, format);
@@ -88,12 +86,12 @@ static void warning(void *user_data, char *format, ...) {
  * callbacks
  ****************************************************************************/
 bool mhtml2_program(void *user_data, void *owner, const char *property, const char *value, size_t value_len) {
-  if (strcmp(value, "MEME") == 0 || strcmp(value, "dreme") == 0) {
+  if (strcmp(value, "MEME") == 0 || strcmp(value, "streme") == 0 || strcmp(value, "dreme") == 0) {
     // by this point we're pretty sure we've got the right parser
     ((DATA_T*)user_data)->format_match = 3;
     return true;
   } else {
-    error(user_data, "Property \"program\" is not set to MEME or dreme.");
+    error(user_data, "Property \"program\" is not set to MEME or STREME or dreme.");
     return false;
   }
 }
@@ -690,8 +688,9 @@ JSON_OBJ_DEF_T *json_def(bool scan) {
         )
       ),
       jd_pobj("background", false, NULL,
-        jd_obj(NULL, NULL, NULL, false, 2,
+        jd_obj(NULL, NULL, NULL, false, 3,
           jd_pstr("source", false, NULL),
+          jd_pnum("order", false, NULL),	// not present in old format 4-Aug-2017
           jd_plst("freqs", true, mhtml2_bgfreqs,
             jd_lnum(1, mhtml2_freqs_create, mhtml2_freqs_finalize, mhtml2_freqs_abort, mhtml2_freqs_set)
           )
@@ -897,7 +896,7 @@ int mhtml2_get_strands(void *data) {
 /*****************************************************************************
  * 
  ****************************************************************************/
-BOOLEAN_T mhtml2_get_bg(void *data, ARRAY_T **bg) {
+bool mhtml2_get_bg(void *data, ARRAY_T **bg) {
   MHTML2_T *parser;
   parser = (MHTML2_T*)data;
   if (parser->data->background == NULL) return false;
@@ -935,7 +934,7 @@ void* mhtml2_file_optional(void *data, int option) {
   if (parser->data->options_found & option) {
     if (parser->data->options_returned & option) {
       die("Sorry, optional values are only returned once. "
-          "This is because we can not guarantee that the "
+          "This is because we cannot guarantee that the "
           "previous caller did not deallocate the memory. "
           "Hence this is a feature to avoid memory bugs.\n");
       return NULL;

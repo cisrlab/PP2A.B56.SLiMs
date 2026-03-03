@@ -22,18 +22,20 @@
 
 // Structures
 struct hash_table_entry {
-  char *key1;			/* character key */
-  int key2;				/* integer key */
+  char *key1;			// character key
+  int key2;			// integer key
   int hash_value;		// hash value of <keq1, key2>
-  void* value;			/* the value assigned to a key (optional)*/
-  HASH_TABLE_ENTRY *next;	/* link to collision list */
-  HASH_TABLE_ENTRY *prev;	/* backward link in collision list */
+  void* value;			// the value assigned to a key (optional)
+  HASH_TABLE_ENTRY *next;	// link to collision list
+  HASH_TABLE_ENTRY *prev;	// backward link in collision list
 };
 
 struct hash_table {
   int n;			/* number of bins in hash table */
   int n_entries;                /* total number of entries in the hash table */
   HASH_TABLE_ENTRY **table;	/* array of entry pointers */
+  void (*free_value)(void *);	// function for freeing entry value;
+				// caller must free them if NULL
 };
 
 // Functions
@@ -43,41 +45,26 @@ HASH_TABLE_ENTRY *hash_lookup_internal(char *key1, int key2, HASH_TABLE ht, int 
 
 /**********************************************************************/
 /*
-        hash
+	hash
 
-        Hashing function for <string, int> items.
-
-        Adapted from a string hashing function djb2 at http://www.cse.yorku.ca/~oz/hash.html
-        and a int hashing function at http://stackoverflow.com/a/12996028/66387
-
-        For best results the hash table size should be a prime number
+	Hashing function for <string, int> items.
 */
 /**********************************************************************/
 static int hash_keys(
-  char *key1,                        /* character key */
-  unsigned long key2,                /* integer key */
-  int n                              /* modulo */
+  char *key1, 				/* character key */
+  int key2,				/* integer key */
+  int n					/* modulo */
 )
 {
-  // djb2, see http://www.cse.yorku.ca/~oz/hash.html
-  unsigned long hash = 5381;
-  int c;
+  int i, p, d;
 
-  while ((c = *key1++))
-      hash = ((hash << 5) + hash) ^ c; /* (hash * 33) ^ c */
+  if (!key1) return key2 % n;		// no key1
 
-  // combine second key, I made this bit up so it may have problems
-  hash ^= key2;
-
-  // See http://stackoverflow.com/a/12996028/66387
-  // the description seems to imply it makes use of the
-  // Avalanche Effect ( http://en.wikipedia.org/wiki/Avalanche_effect )
-  hash = ((hash >> 16) ^ hash) * 0x45d9f3b;
-  hash = ((hash >> 16) ^ hash) * 0x45d9f3b;
-  hash = ((hash >> 16) ^ hash);
-
-  // finally constrain to the hash table size
-  return hash % n;
+  for (i=0, d=1, p=key2; key1[i] != 0; i++, d *= 256) {
+    if (d >= two24) d = 1;		/* d<2**23 insures d*key1<2**31 */
+    p += (d * key1[i]) % n;
+  }
+  return (p>=0 ? p % n : -p % n);
 }
 
 
@@ -104,20 +91,23 @@ int get_num_entries(
 */
 /**********************************************************************/
 HASH_TABLE hash_create(
-  int n
+  int n,
+  void (*free_value)(void *)		// function for freeing value;
+					// caller must free them if NULL
 )
 {
   // PRECONDITION: Caller must specify a number of bins >= 1:
   assert(n>0);
 
   int i;
-  HASH_TABLE ht = (HASH_TABLE) mymalloc(sizeof(struct hash_table));
+  HASH_TABLE ht = (HASH_TABLE) mm_malloc(sizeof(struct hash_table));
 
   /* initialize hash table */
   ht->n = n;
-  ht->table = (HASH_TABLE_ENTRY **) mymalloc(n * sizeof(HASH_TABLE_ENTRY *));
+  ht->table = (HASH_TABLE_ENTRY **) mm_malloc(n * sizeof(HASH_TABLE_ENTRY *));
   ht->n_entries = 0;
   for (i=0; i<n; i++) ht->table[i] = NULL;
+  ht->free_value = free_value;
 
   return ht;
 }
@@ -130,15 +120,16 @@ HASH_TABLE hash_create(
 */
 /**********************************************************************/
 void hash_destroy(
-  HASH_TABLE ht 		/* hash table to destroy */
+  void *htv 				/* hash table to destroy */
 )
 {
   int i;
+  HASH_TABLE ht = htv;
   for (i=0; i < ht->n; i++) {
     HASH_TABLE_ENTRY *hte = ht->table[i];
     while (hte != NULL) {
       HASH_TABLE_ENTRY *next = hte->next;
-      hash_entry_destroy(hte);
+      hash_entry_destroy(hte, ht->free_value);
       hte = next;
     }
   }
@@ -152,16 +143,17 @@ void hash_destroy(
 
 	Destroy a hash table entry.
 
-	ATTENTION: If a value was passed to the hash_table the user has to
-	ensure that the memory for this value is/will be freed by himself!
 */
 /**********************************************************************/
 
-void hash_entry_destroy(
-  HASH_TABLE_ENTRY *hte 	/* hash table entry to destroy */
+static void hash_entry_destroy(
+  HASH_TABLE_ENTRY *hte, 	/* hash table entry to destroy */
+  void (*free_value)(void *) 	// function for freeing entry value;
+				// caller must free them if NULL
 )
 {
   myfree(hte->key1);
+  if (free_value && hte->value) free_value(hte->value);
   myfree(hte);
 } // hash_entry_destroy
 
@@ -175,11 +167,11 @@ void hash_entry_destroy(
         that string will correctly recognise the prior presence of the
         string.
 
-	Returns TRUE if successful.
-	Returns FALSE if the item already is present.
+	Returns true if successful.
+	Returns false if the item already is present.
 */
 /**********************************************************************/
-BOOLEAN hash_insert_str(
+bool hash_insert_str(
   char *key1,			/* character key */
   HASH_TABLE ht			/* the hash table */
 ) {
@@ -197,7 +189,7 @@ BOOLEAN hash_insert_str(
 */
 /**********************************************************************/
 void hash_set_entry_value(
-  void* value,					/* the value */
+  void* value,			/* the value */
   HASH_TABLE_ENTRY *hte         /* hash table entry to equip with an value */
 ){
   assert(hte != NULL);
@@ -226,7 +218,7 @@ void* hash_get_entry_value(
 */
 /**********************************************************************/
 char* hash_get_entry_key(
-  HASH_TABLE_ENTRY *hte         /* hash table entry of interes */
+  HASH_TABLE_ENTRY *hte         /* hash table entry of interest */
 ){
   assert(hte != NULL);
   return (hte->key1);
@@ -235,7 +227,7 @@ char* hash_get_entry_key(
 
 /**********************************************************************/
 /*
-	hash_insert_str
+	hash_insert_str_value
 
 	Insert a <string, int> item into a hash table, where the int
         is equal to DUMMY_INT. This method allows the user to just specify
@@ -243,16 +235,16 @@ char* hash_get_entry_key(
         that string will correctly recognise the prior presence of the
         string.
 
-	Returns TRUE if successful.
-	Returns FALSE if the item already is present.
+	Returns true if successful.
+	Returns false if the item already is present.
 */
 /**********************************************************************/
-BOOLEAN hash_insert_str_value(
+bool hash_insert_str_value(
   char *key1,			/* character key */
   void *value,			/* the value */
   HASH_TABLE ht			/* the hash table */
 ) {
-  return hash_insert_value(key1, DUMMY_INT, value ,ht);
+  return hash_insert_value(key1, DUMMY_INT, value, ht);
 }
 
 /**********************************************************************/
@@ -261,13 +253,13 @@ BOOLEAN hash_insert_str_value(
 
 	Insert a <string, int> item into a hash table.
 
-	Returns TRUE if successful.
-	Returns FALSE if the item already is present.
+	Returns true if successful.
+	Returns false if the item already is present.
 */
 /**********************************************************************/
-BOOLEAN hash_insert(
+bool hash_insert(
   char *key1,			/* character key */
-  int key2,				/* integer key */
+  int key2,			/* integer key */
   HASH_TABLE ht			/* the hash table */
 )
 {
@@ -277,17 +269,17 @@ BOOLEAN hash_insert(
 
 /**********************************************************************/
 /*
-	hash_insert
+	hash_insert_value
 
-	Insert a <string, int> item into a hash table.
+	Insert a <string, int> item with a value into a hash table.
 
-	Returns TRUE if successful.
-	Returns FALSE if the item already is present.
+	Returns true if successful.
+	Returns false if the item already is present.
 */
 /**********************************************************************/
-BOOLEAN hash_insert_value(
+bool hash_insert_value(
   char *key1,			/* character key */
-  int key2,				/* integer key */
+  int key2,			/* integer key */
   void *value,			/* the value */
   HASH_TABLE ht			/* the hash table */
 )
@@ -297,9 +289,13 @@ BOOLEAN hash_insert_value(
 
   if ((hte = hash_lookup_internal(key1, key2, ht, &hash_value)) == NULL) {
     /* make a hash-table entry */
-    hte = (HASH_TABLE_ENTRY *) mymalloc(sizeof(HASH_TABLE_ENTRY));
-    hte->key1 = (char *) mymalloc (strlen(key1) + 1);
-    strcpy(hte->key1, key1);
+    hte = (HASH_TABLE_ENTRY *) mm_malloc(sizeof(HASH_TABLE_ENTRY));
+    if (key1) {
+      hte->key1 = (char *) mm_malloc (strlen(key1) + 1);
+      strcpy(hte->key1, key1);
+    } else {
+      hte->key1 = NULL;
+    }
     hte->key2 = key2;
     hte->hash_value = hash_value;
     hte->value = value;
@@ -314,9 +310,9 @@ BOOLEAN hash_insert_value(
     // to the new entry.
     if (ht->table[hash_value] != NULL) ht->table[hash_value]->prev = hte;
     ht->table[hash_value] = hte;	// now put at head of list
-    return(TRUE);
+    return(true);
   } else {
-    return(FALSE);
+    return(false);
   }
 } // hash_insert
 
@@ -329,11 +325,11 @@ BOOLEAN hash_insert_value(
 	ATTENTION: If a value was passed to the hash_table the user has to
 	ensure that the memory for this value is/will be freed by himself!
 
-	Returns TRUE if successful.
-	Returns FALSE if the item was not present.
+	Returns true if successful.
+	Returns false if the item was not present.
 */
 /**********************************************************************/
-BOOLEAN hash_remove(
+bool hash_remove(
   char *key1,			/* character key */
   int key2,			/* integer key */
   HASH_TABLE ht			/* the hash table */
@@ -354,14 +350,14 @@ BOOLEAN hash_remove(
         (hte->next)->prev = hte->prev;
       }
     }
-    hash_entry_destroy(hte);		// destroy the entry
+    hash_entry_destroy(hte, ht->free_value);	// destroy the entry
 
     // Keep count of the number of entries in the hash table:
     ht->n_entries--;
 
-    return(TRUE);
+    return(true);
   } else {
-    return(FALSE);
+    return(false);
   }
 } // hash_insert
 
@@ -378,11 +374,11 @@ BOOLEAN hash_remove(
 	ATTENTION: If a value was passed to the hash_table the user has to
 	ensure that the memory for this value is/will be freed by himself!
 
-	Returns TRUE if successful.
-	Returns FALSE if the item already is present.
+	Returns true if successful.
+	Returns false if the item was not present.
 */
 /**********************************************************************/
-BOOLEAN hash_remove_str(
+bool hash_remove_str(
   char *key1,			/* character key */
   HASH_TABLE ht			/* the hash table */
 ) {
@@ -409,15 +405,19 @@ HASH_TABLE_ENTRY *hash_lookup_internal(
 {
   /* compute the position in hash table of entry */
   *hash_value = hash_keys(key1, key2, ht->n);
+  assert(*hash_value >= 0);
   /* get collision list for this hash index */
   HASH_TABLE_ENTRY *hte = ht->table[*hash_value];
   while (hte != NULL) {
     //fprintf(stderr, "looking up %s\n", key1);
-    if ((hte->key2 == key2) && (!strcmp(hte->key1, key1))) return hte;
+    if ((hte->key2 == key2) && 		// integer keys match AND
+      ((!key1 && !hte->key1) || 	// string keys are NULL OR
+      (key1 && hte->key1 && !strcmp(hte->key1, key1)))) // string keys match
+        return hte;
     hte = hte->next;
   }
   return NULL;
-} // hash_lookup
+} // hash_lookup_internal
 
 /**********************************************************************/
 /*
@@ -431,12 +431,13 @@ HASH_TABLE_ENTRY *hash_lookup_internal(
 HASH_TABLE_ENTRY *hash_lookup(
   char *key1,			/* character key */
   int key2,			/* integer key */
-  HASH_TABLE ht		/* the hash table */
+  HASH_TABLE ht			/* the hash table */
 )
 {
   int hash;
   return hash_lookup_internal(key1, key2, ht, &hash);
-}
+} // hash_lookup
+
 /**********************************************************************/
 /*
 	hash_lookup_str
@@ -451,8 +452,35 @@ HASH_TABLE_ENTRY *hash_lookup(
 /**********************************************************************/
 HASH_TABLE_ENTRY *hash_lookup_str(
   char *key1,			/* character key */
-  HASH_TABLE ht		/* the hash table */
+  HASH_TABLE ht			/* the hash table */
 ) {
   int hash;
   return hash_lookup_internal(key1, DUMMY_INT, ht, &hash);
 }
+
+/**********************************************************************/
+/*
+	hash_get_keys
+
+	Return the (string) keys of a hash table.
+*/
+/**********************************************************************/
+STRING_LIST_T *hash_get_keys(
+  HASH_TABLE ht			// the hash table
+) {
+
+  int i;
+  STRING_LIST_T *keys = new_string_list();
+
+  for (i=0; i < ht->n; i++) {
+    HASH_TABLE_ENTRY *hte = ht->table[i];
+    while (hte != NULL) {
+      add_string(hte->key1, keys);
+      HASH_TABLE_ENTRY *next = hte->next;
+      hte = next;
+    }
+  }
+
+  return(keys);
+
+} // hash_get_keys

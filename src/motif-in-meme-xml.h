@@ -1,4 +1,3 @@
-
 #ifndef MOTIF_IN_MEME_XML_H
 #define MOTIF_IN_MEME_XML_H
 
@@ -17,7 +16,7 @@ char* mxml_next_error(void *data);
 MOTIF_T* mxml_next_motif(void *data);
 ALPH_T* mxml_get_alphabet(void *data);
 int mxml_get_strands(void *data);
-BOOLEAN_T mxml_get_bg(void *data, ARRAY_T **bg);
+bool mxml_get_bg(void *data, ARRAY_T **bg);
 void* mxml_motif_optional(void *data, int option);
 void* mxml_file_optional(void *data, int option);
 

@@ -3,13 +3,13 @@
  * AUTHOR: William Stafford Noble
  * CREATE DATE: 12-22-98
  * PROJECT: shared
- * COPYRIGHT: 1999-2008, WSN 
+ * COPYRIGHT: 1999-2019, WSN, TLB
  * VERSION: $Revision: 1.5 $
  * DESCRIPTION: Data structure for manipulating a list of strings. 
  **************************************************************************/
 #include "string-list.h"
-#include "utils.h"
 #include <string.h>
+#include <regex-utils.h>
 #include <assert.h>
 
 /*************************************************************************
@@ -197,6 +197,27 @@ void append_to_nth_string
   strcat(a_list->strings[n], new_string);
 }
 
+/*************************************************************************
+ * Prepend a string to all strings.
+ *************************************************************************/
+void prepend_to_strings
+  (char*          new_string,            
+   STRING_LIST_T* a_list)
+{
+  int i, j;
+  int len = strlen(new_string);
+  int n = get_num_strings(a_list);
+
+  /* Make all the strings longer */
+  resize_string_list(a_list->longest_string + len, a_list);
+
+  /* Copy the string into the list. */
+  for (i=0; i<n; i++) {
+    char *s = a_list->strings[i];
+    memmove(s+len, s, strlen(s)+1);
+    for (j=0; j<len; j++) s[j] = new_string[j];
+  }
+} // prepend_to_strings
 
 /*************************************************************************
  * Add a string to the end of a given list.
@@ -285,7 +306,7 @@ void remove_string
   (char*     a_string,
    STRING_LIST_T* a_list)
 {
-  BOOLEAN_T found_it;    /* Have we found the desired string? */
+  bool found_it;    /* Have we found the desired string? */
   char*    this_string; /* The current string. */
   int       i_string;    /* Index of the current string.*/
 
@@ -297,13 +318,13 @@ void remove_string
 	a_string);
   }
 
-  found_it = FALSE;
+  found_it = false;
   for (i_string = 0; i_string < get_num_strings(a_list) - 1; i_string++) {
     this_string = get_nth_string(i_string, a_list);
 
     /* Is this the string we are looking for? */
     if (strcmp(this_string, a_string) == 0) {
-      found_it = TRUE;
+      found_it = true;
     }
 
     /* Copy the next string into the current location. */
@@ -334,7 +355,7 @@ void remove_strings
 /*************************************************************************
  * Does a given string appear in a given list?
  *************************************************************************/
-BOOLEAN_T have_string
+bool have_string
   (char*           a_string,
    STRING_LIST_T*  a_list)
 {
@@ -346,16 +367,16 @@ BOOLEAN_T have_string
   for (i_string = 0; i_string < get_num_strings(a_list); i_string++) {
     this_string = get_nth_string(i_string, a_list);
     if (strcmp(this_string, a_string) == 0) {
-      return(TRUE);
+      return(true);
     }
   }
-  return(FALSE);
+  return(false);
 }
 
 /*************************************************************************
  * Does a given sub-string appear in a given list?
  *************************************************************************/
-BOOLEAN_T have_substring
+bool have_substring
   (char*           a_substring,
    STRING_LIST_T*  a_list)
 {
@@ -367,11 +388,68 @@ BOOLEAN_T have_substring
   for (i_string = 0; i_string < get_num_strings(a_list); i_string++) {
     this_string = get_nth_string(i_string, a_list);
     if (strstr(this_string, a_substring) != NULL) {
-      return(TRUE);
+      return(true);
     }
   }
-  return(FALSE);
+  return(false);
 }
+
+/*************************************************************************
+ * Does a given POSIX regular expression appear in a given list?
+ *************************************************************************/
+bool have_regex
+  (char *a_regex,		// POSIX regular expression
+   STRING_LIST_T *a_list)
+{
+  char* this_string; /* The current string in the list. */
+  int    i_string;    /* Index of the current string. */
+  
+  check_null_list(a_list);
+
+  // Compile the regular expression.
+  regex_t preg;
+  regmatch_t pmatch[1];
+  regcomp_or_die(a_regex, &preg, a_regex, REG_EXTENDED);
+
+  // Test each string until a match is found or fail.
+  for (i_string = 0; i_string < get_num_strings(a_list); i_string++) {
+    this_string = get_nth_string(i_string, a_list);
+    if (regexec_or_die(a_regex, &preg, this_string, 1, pmatch, 0)) return true;
+  }
+  return(false);
+} // have_regex
+
+/*************************************************************************
+ * Return list of strings matching a given POSIX regular expression 
+ * in a given list.
+ *************************************************************************/
+STRING_LIST_T *get_matches_in_string_list
+  (char *a_regex,		// POSIX regular expression
+   STRING_LIST_T *a_list)
+{
+  char* this_string; /* The current string in the list. */
+  
+  check_null_list(a_list);
+
+  // Compile the regular expression.
+  regex_t preg;
+  regmatch_t pmatch[1];
+  regcomp_or_die(a_regex, &preg, a_regex, REG_EXTENDED);
+
+  STRING_LIST_T *new_list = NULL;
+
+  // Add each matching string to new list.
+  int i_string;
+  for (i_string = 0; i_string < get_num_strings(a_list); i_string++) {
+    this_string = get_nth_string(i_string, a_list);
+    if (regexec_or_die(a_regex, &preg, this_string, 1, pmatch, 0)) {
+      if (new_list == NULL) new_list = new_string_list();	// create the new list
+      add_string(this_string, new_list);
+    }
+  }
+  return(new_list);
+} // get_matches_in_string_list
+
 /*************************************************************************
  * Return a index of a string in the given list.
  * Returns -1 if string is not in list.
@@ -481,7 +559,7 @@ void sort_string_list
  *************************************************************************/
 void sort_string_list_by_score
   (STRING_LIST_T* a_list,
-   BOOLEAN_T      reverse) //Descending order
+   bool      reverse) //Descending order
 {
   check_null_list(a_list);
   
@@ -611,13 +689,13 @@ char* combine_string_list
   /* Allocate memory for the string. */
   combined_string = (char*)mm_calloc(string_length, sizeof(char));
 
-  /* Accumulate all the strings, with spaces between. */
+  /* Accumulate all the strings, with separators between. */
   for (i_string = 0; i_string < get_num_strings(a_list); i_string++) {
     strcat(combined_string, get_nth_string(i_string, a_list));
     strcat(combined_string, separator);
   }
 
-  /* Remove the final space. */
+  /* Remove the final separator. */
   combined_string[strlen(combined_string) - strlen(separator)] = '\0';
 
   /* Return the string. */
@@ -626,7 +704,7 @@ char* combine_string_list
 
 
 /*****************************************************************************
- * Read a list of strings from a given file.
+ * Read a list of strings from an open file.
  *****************************************************************************/
 STRING_LIST_T* read_string_list
   (FILE* infile)
@@ -700,6 +778,28 @@ STRING_LIST_T* read_string_list_from_file
 }
 
 /*************************************************************************
+ * Create a new string list by splitting a string on a separator character.
+ *************************************************************************/
+STRING_LIST_T* new_string_list_char_split(
+  char separator,		// split on this single character
+  char *string			// string to split
+) {
+  STRING_LIST_T* string_list = new_string_list();
+  int len = strlen(string);
+  char *str = strndup(string, len);	// because string may be a const
+  int i, i_start=0;
+  for (i=0; i<len; i++) {
+    if (i==len-1 || str[i] == separator) {
+      if (i != len-1) str[i] = '\0';
+      add_string(&(str[i_start]), string_list); 
+      i_start = i+1;
+    }
+  }
+  free(str);
+  return(string_list);
+} // new_string_list_char_split
+
+/*************************************************************************
  * Write out a list of strings.
  *************************************************************************/
 void write_string_list
@@ -746,7 +846,7 @@ void free_string_list
 /*************************************************************************
  * Test two string lists for equality.  Order matters.
  *************************************************************************/
-BOOLEAN_T equal_string_lists
+bool equal_string_lists
  (STRING_LIST_T* a_list,
   STRING_LIST_T* b_list)
 {
@@ -757,16 +857,16 @@ BOOLEAN_T equal_string_lists
 
   // If there are different numbers of strings, then they cannot be equal.
   if (get_num_strings(a_list) != get_num_strings(b_list)) {
-    return(FALSE);
+    return(false);
   }
 
   for (i_string = 0; i_string < get_num_strings(a_list); i_string++) {
     if (strcmp(get_nth_string(i_string, a_list),
 	       get_nth_string(i_string, b_list))) {
-      return(FALSE);
+      return(false);
     }
   }
-  return(TRUE);
+  return(true);
 }
 
 /*************************************************************************
@@ -774,12 +874,12 @@ BOOLEAN_T equal_string_lists
  *
  * Optionally, print the duplicated strings to stderr.
  *************************************************************************/
-BOOLEAN_T has_duplicates
+bool has_duplicates
   (char*          message, // If message == "", then don't print the list to stderr.
    STRING_LIST_T* my_list)
 {
-  BOOLEAN_T return_value = FALSE;
-  BOOLEAN_T printed_message = FALSE;
+  bool return_value = false;
+  bool printed_message = false;
 
   check_null_list(my_list);
 
@@ -790,7 +890,7 @@ BOOLEAN_T has_duplicates
     char* first_string = get_nth_string(i_string, my_list);
 
     // If a string appears more than twice, just print it the first time.
-    BOOLEAN_T already_printed = FALSE;
+    bool already_printed = false;
 
     // Look for another occurrence of this string.
     int j_string;
@@ -800,48 +900,29 @@ BOOLEAN_T has_duplicates
       // Are the strings the same, but with different indices?
       if ((i_string != j_string) && 
 	  (strcmp(first_string, second_string) == 0)) {
-	return_value = TRUE;
+	return_value = true;
 
 	// If requested, print the string.
 	if ((strcmp(message, "") != 0)
-	    && (already_printed == FALSE)) {
+	    && (already_printed == false)) {
 
 	  // Print the initial message, if one is given.
-	  if (printed_message == FALSE) {
+	  if (printed_message == false) {
 	    fprintf(stderr, "%s", message);
-	    printed_message = TRUE;
+	    printed_message = true;
 	  }
 
 	  fprintf(stderr, " %s", first_string);
-	  already_printed = TRUE;
+	  already_printed = true;
 	}
       }
     }
   }
 
   // Print the final EOL.  
-  if (printed_message == TRUE) {
+  if (printed_message == true) {
     fprintf(stderr, "\n");
   }
 
   return(return_value);
 }
-
-
-/*
- * Local Variables:
- * mode: c
- * c-basic-offset: 2
- * End:
- */
-
-
-
-
-
-
-
-
-
-
-

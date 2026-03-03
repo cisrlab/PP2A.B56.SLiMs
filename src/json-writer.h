@@ -11,6 +11,11 @@
  */
 #include <stdbool.h>
 #include <stdio.h>
+#if defined(sgi4d) || defined(ibmrs6000) || defined(Linux)
+  #include <time.h>
+#else
+  #include <sys/time.h>
+#endif
 
 typedef struct json_writer JSONWR_T;
 

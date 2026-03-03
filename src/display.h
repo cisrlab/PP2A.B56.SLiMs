@@ -1,13 +1,3 @@
-/*
- * $Id: display.h 1048 2006-07-06 20:07:44Z cegrant $
- * 
- * $Log$
- * Revision 1.1  2005/07/29 18:37:03  nadya
- * Initial revision
- *
- */
-
-
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
@@ -15,9 +5,7 @@
 
 extern void print_results(
   DATASET *dataset,      /* the dataset IN */
-  DATASET *neg_dataset,  /* negative examples IN */
   MODEL *model,          /* the model */
-  MODEL *neg_model,      /* negative model IN */
   CANDIDATE *candidates, /* candidate models found IN */
   FILE* outfile          /* file for text output IN */
 );
@@ -37,7 +25,7 @@ extern void record_results(
 extern void print_meme_file_xml(
   MODEL *model,                   /* the model IN */
   DATASET *dataset,               /* the dataset IN */
-  LO *los[MAXG],                  /* logodds structures for motifs */
+  DATASET *neg_dataset,           // the control dataset IN
   int nmotifs,                    /* number of motifs IN */
   MOTIF_SUMMARY *motif_summaries, /* list of final motif properties IN */
   char *stopping_reason,          /* description of reason for stopping IN */
@@ -58,6 +46,7 @@ extern void print_meme_file_html(
 
 extern void print_theta(
   int imotif,		 /* motif number */
+  char *consensus,  // single-letter consensus of motif
   int format,		 /* 1 = floating point
               	    2 = integer */ 
   int nsites,    /* number of sites (discrete) */
@@ -100,14 +89,20 @@ extern void print_dataset_summary (
 extern void print_summary(
   MODEL *model,     /* the model IN */
   DATASET *dataset, /* the dataset IN */
-  LO **los,         /* the LO structures IN */
   int nmotifs,      /* number of motifs IN */
-  double **pv,      /* p-value of score distribution IN */
   FILE *outfile     /* where to print IN */
 );
 
 extern void print_meme_doc(
   FILE *outfile         /* where to print IN */
+);
+
+/*
+  Get a single-letter consensus from a model.
+*/
+extern char *get_single_letter_consensus(
+  MODEL *model,
+  ALPH_T *alphabet
 );
 
 #endif

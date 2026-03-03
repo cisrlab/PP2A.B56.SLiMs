@@ -224,6 +224,7 @@ struct dreme_io_xml_callbacks {
  * contains: pos+, match*
  *
  *  id                the identifier used by DREME
+ *  alt               the alternate identifier used by DREME
  *  seq               the DNA iupac sequence representing the motif.
  *  length            the length of the motif
  *  nsites            the number of sites used to create the motif
@@ -233,7 +234,7 @@ struct dreme_io_xml_callbacks {
  *  evalue            the evalue of the motif after erasing (in log base 10)
  *  unerased_evalue   the evalue of the motif without erasing (in log base 10)
  ****************************************************************************/
-  void (*start_motif)(void *ctx, char *identifier, char *iupac, int length,
+  void (*start_motif)(void *ctx, char *identifier, char *alt, char *iupac, int length,
       long sites, long positives_with_motif, long negatives_with_motif,
       double log10_pvalue, double log10_evalue, double log10_unerased_evalue);
 

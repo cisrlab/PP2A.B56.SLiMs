@@ -6,6 +6,11 @@
  * COPYRIGHT: 2007, UW
  * DESCRIPTION: q value calculation, a la Benjamini Hochberg
  *************************************************************************/
+
+#ifdef MAIN
+#define DEFINE_GLOBALS
+#endif
+
 #include "utils.h"
 #include "qvalue.h"
 #include "array.h"
@@ -13,7 +18,6 @@
 #include <time.h>
 #include <assert.h>
 #include <stdio.h>
-#include <R_ext/Error.h>
 
 /*************************************************************************
  * Read a set of floats from the specified column of a tab-delimited
@@ -32,7 +36,7 @@ ARRAY_T* read_scores_from_column
 
   // Read the p-values into a very large array.
   FILE* score_file = NULL;
-  if (open_file(score_filename, "r", TRUE, "scores", "scores",
+  if (open_file(score_filename, "r", true, "scores", "scores",
 		&score_file) == 0) {
     Rf_error("exit:%d", 1);
   }
@@ -112,10 +116,7 @@ ARRAY_T* read_scores_from_column
   }
   fclose(score_file);
   int num_scores = i_score;
-  if (verbosity >= NORMAL_VERBOSE) {
-    fprintf(stderr, "Read %d values from %s.\n", num_scores,
-	    score_filename);
-  }
+  DEBUG_FMT(NORMAL_VERBOSE, "# Read %d values from %s.\n", num_scores, score_filename);
 
   // Make a smaller array to contain just the scores.
   ARRAY_T* scores = allocate_array(num_scores);
@@ -210,14 +211,12 @@ double estimate_pi_zero
    float    max_lambda,            // Maximum lambda value to consider.
    ARRAY_T* p_values)
 {
-  if (verbosity >= NORMAL_VERBOSE) {
-    fprintf(stderr, "Estimating pi_0.\n");
-  }
-
+  DEBUG_MSG(NORMAL_VERBOSE, "#   Estimating pi_0.\n");
+  
   int num_pvalues = get_array_length(p_values);
 
   // Sort the p-values in ascending order.
-  sort_array(FALSE, p_values);
+  sort_array(false, p_values);
 
   // Allocate various arrays.
   ARRAY_T* pi_zeroes = allocate_array(num_lambda);
@@ -235,24 +234,19 @@ double estimate_pi_zero
 
   // Find the minimal pi_zero.
   double min_pi_zero = get_array_minimum(pi_zeroes);
-  if (verbosity > NORMAL_VERBOSE) {
-    fprintf(stderr, "Minimal pi_zero = %g\n", min_pi_zero);
-  }
+  DEBUG_FMT(NORMAL_VERBOSE, "# Minimal pi_zero = %g\n", min_pi_zero);
 
   // Choose the lambda which minimizes the mean-squared error of our estimates.
-  if (verbosity >= DUMP_VERBOSE) {
-    fprintf(stderr, "Performing %d bootstraps.\n", num_bootstraps);
-  }
+  DEBUG_FMT(DUMP_VERBOSE, "# Performing %d bootstraps.\n", num_bootstraps);
+
   int i_bootstrap;
   for (i_bootstrap = 0; i_bootstrap < num_bootstraps; i_bootstrap++) {
-    if (verbosity >= DUMP_VERBOSE) {
-      fprintf(stderr, "Bootstrap %d\n", i_bootstrap);
-    }
+    DEBUG_FMT(DUMP_VERBOSE, "#   Bootstrap %d\n", i_bootstrap);
 
     // Create an array of bootstrapped p-values.
     ARRAY_T* bootstrapped_pvalues = bootstrap_array(p_values,
 						    num_bootstrap_samples);
-    sort_array(FALSE, bootstrapped_pvalues);
+    sort_array(false, bootstrapped_pvalues);
 
     for (i_lambda = 0; i_lambda < num_lambda; i_lambda++) {
       double lambda = ((double)(i_lambda + 1)
@@ -281,10 +275,8 @@ double estimate_pi_zero
       minimal_error = this_error;
     }
   }
-  if (verbosity >= DUMP_VERBOSE) {
-    fprintf(stderr, "Minimal error = %g\n", minimal_error);
-    fprintf(stderr, "Index of best lambda = %d\n", best_lambda_index);
-  }
+  DEBUG_FMT(DUMP_VERBOSE, "# Minimal error = %g\n", minimal_error);
+  DEBUG_FMT(DUMP_VERBOSE, "# Index of best lambda = %d\n", best_lambda_index);
 
   // Use the corresponding pi_zero.
   double pi_zero = get_array_item(best_lambda_index, pi_zeroes);
@@ -292,22 +284,20 @@ double estimate_pi_zero
   // Ensure the pi_zero estimate is in the right range.
   pi_zero = MAX(MIN(pi_zero, 1.0), 0.0);
 
-  if (verbosity >= NORMAL_VERBOSE) {
-    fprintf(stderr, "Estimated pi_0=%g\n", pi_zero);
-  }
+  DEBUG_FMT(NORMAL_VERBOSE, "#   Estimated pi_0=%g\n", pi_zero);
 
   // If requested, store the estimated pi-zero as a function of lambda.
   if (pi_zero_filename != NULL) {
     FILE* pi_zero_file = NULL;
-    if (open_file(pi_zero_filename, "w", TRUE, "pi-zero", "pi-zero",
+    if (open_file(pi_zero_filename, "w", true, "pi-zero", "pi-zero",
 		&pi_zero_file) == 0) {
       Rf_error("exit:%d", 1);
     }
     fprintf(pi_zero_file, "p-value threshold\tlocal pi-zero\tfinal pi-zero\n");
     for (i_lambda = 0; i_lambda < num_lambda; i_lambda++) {
-      double lambda = ((double)(i_lambda + 1)
+      double lambda = ((double)(i_lambda + 1) 
 		       / (double)num_lambda) * max_lambda;
-      fprintf(pi_zero_file, "%g\t%g\t%g\n",
+      fprintf(pi_zero_file, "%g\t%g\t%g\n", 
 	      lambda,
 	      get_array_item(i_lambda, pi_zeroes),
 	      pi_zero);
@@ -329,13 +319,13 @@ double estimate_pi_zero
  * In order to estimate pi0 we need to have the distribution of pvalues.
  * We can get the distribution from the pvalues array only if it contains
  * all the observed pvalues. If we don't have all the observed p-values
- * we can use the uniformly sampled subset of pvalues stored in the reservoir
+ * we can use the uniformly sampled subset of pvalues stored in the reservoir 
  * sampler. If neither the full set of pvalues, or uniformly sampled pvalues
  * are avilable, then we can't estimate pi0, and simply use pi0 = 1.0.
  *************************************************************************/
 void compute_qvalues(
-  BOOLEAN_T compute_fdr,      // If true, only compute FDR, not q-value.
-  BOOLEAN_T use_pi_zero,      // Estimate pi_zero; else just use 1.0.
+  bool compute_fdr,      // If true, only compute FDR, not q-value.
+  bool use_pi_zero,      // Estimate pi_zero; else just use 1.0.
   char*     pi_zero_filename, // Filename to store pi-zero estimate in.
   int       num_bootstraps,   // How many bootstraps to perform.
   int       num_bootstrap_samples, // Number of p-values in each bootstrap.
@@ -345,6 +335,8 @@ void compute_qvalues(
   ARRAY_T*  pvalues,         // retained pvalues
   ARRAY_T*  sampled_pvalues  // uniformly sampled pvalues
 ) {
+
+  DEBUG_MSG(NORMAL_VERBOSE, "# Computing q-values.\n");
 
   // Make sure we got at least one p-value.
   int num_values = get_array_length(pvalues);
@@ -361,25 +353,19 @@ void compute_qvalues(
   }
 
   // Verify that the p-values are in sorted order.
-  myassert(1, is_sorted(TRUE, pvalues), "The p-values are not sorted.");
+  myassert(1, is_sorted(true, pvalues), "The p-values are not sorted.");
 
   double pi_zero = 1.0;
-
+  
   // Estimate pi_zero, if requested.
   if (use_pi_zero) {
 
-    BOOLEAN_T have_all_pvalues = (total_values == (long) num_values);
+    bool have_all_pvalues = (total_values == (long) num_values);
 
     if (have_all_pvalues) {
       if (num_values > (long) MIN_SAMPLES) {
         // Estimate pi0 from complete set of pvalues
-        if (verbosity >= NORMAL_VERBOSE) {
-          fprintf(
-            stderr,
-            "Estimating pi_0 from all %d observed p-values.\n",
-            num_values
-          );
-        }
+        DEBUG_FMT(NORMAL_VERBOSE, "#   Estimating pi_0 from all %d observed p-values.\n", num_values);
         pi_zero = estimate_pi_zero(
            pi_zero_filename,
            num_bootstraps,
@@ -388,31 +374,17 @@ void compute_qvalues(
            max_lambda,
            pvalues
         );
+      } else {
+        DEBUG_FMT(NORMAL_VERBOSE,
+            "#   Cannot estimate pi_0 accurately from fewer than %d p-values.\n"
+            "#   Total p-values = %d. Using pi_zero = 1.0.\n", MIN_SAMPLES, num_values
+        );
       }
-      else {
-        if (verbosity >= NORMAL_VERBOSE) {
-          fprintf(
-            stderr,
-            "Warning: Cannot estimate pi_0 accurately from fewer than %d p-values."
-            "         total p-values = %d. Using pi_zero = 1.0.\n",
-            MIN_SAMPLES,
-            num_values
-          );
-        }
-      }
-    }
-    else if (sampled_pvalues != NULL) {
+    } else if (sampled_pvalues != NULL) {
       int num_samples = get_array_length(sampled_pvalues);
       if (num_samples > MIN_SAMPLES) {
         // Estimate pi0 from uniformly sampled pvalues
-        if (verbosity >= NORMAL_VERBOSE) {
-          fprintf(
-            stderr,
-            "Estimating pi_0 from a uniformly sampled set "
-            "of %d p-values.\n",
-            num_samples
-          );
-        }
+        DEBUG_FMT(NORMAL_VERBOSE, "#   Estimating pi_0 from a uniformly sampled set of %d p-values.\n", num_samples);
         pi_zero = estimate_pi_zero(
            pi_zero_filename,
            num_bootstraps,
@@ -421,23 +393,19 @@ void compute_qvalues(
            max_lambda,
            sampled_pvalues
         );
-      }
-      else {
-        fprintf(
-          stderr,
-          "Warning: Cannot estimate pi_0 accurately from fewer "
-          "than %d sampled p-values.\n"
-          "         only %d p-values were sampled. Using pi_zero = 1.0.\n",
+      } else {
+        DEBUG_FMT(QUIET_VERBOSE,
+          "# Warning: Cannot estimate pi_0 accurately from fewer\n"
+          "#          than %d sampled p-values.\n"
+          "#          Only %d p-values were sampled. Using pi_zero = 1.0.\n",
           MIN_SAMPLES,
           num_samples
         );
       }
-    }
-    else {
-      fprintf(
-        stderr,
-        "Warning: Cannot estimate pi_zero without the complete range of p-values,\n"
-        "         or a uniformly sampled subset of pvalues. Using pi_zero = 1.0.\n"
+    } else {
+      DEBUG_MSG(QUIET_VERBOSE,
+	"# Warning: Cannot estimate pi_zero without the complete range of p-values,\n"
+	"#        or a uniformly sampled subset of pvalues. Using pi_zero = 1.0.\n"
       );
     }
   }
@@ -481,17 +449,15 @@ void compute_qvalues(
  * http://www.pubmedcentral.nih.gov/articlerender.fcgi?artid=379178
  *****************************************************************************/
 void convert_scores_to_pvalues
-  (BOOLEAN_T good_score_is_low,
+  (bool good_score_is_low,
    ARRAY_T*  observed_scores,
    ARRAY_T*  null_scores)
 {
-  if (verbosity >= NORMAL_VERBOSE) {
-    fprintf(stderr, "Converting scores to p-values.\n");
-  }
+  DEBUG_MSG(NORMAL_VERBOSE, "Converting scores to p-values.\n");
 
   // Sort both arrays in order, best to worst.
-  sort_array(good_score_is_low != TRUE, observed_scores);
-  sort_array(good_score_is_low != TRUE, null_scores);
+  sort_array(good_score_is_low != true, observed_scores);
+  sort_array(good_score_is_low != true, null_scores);
 
   int num_observed = get_array_length(observed_scores);
   int num_null = get_array_length(null_scores);
@@ -506,8 +472,8 @@ void convert_scores_to_pvalues
     ATYPE observed_score = get_array_item(i_observed, observed_scores);
 
     // Find the first null score that is worse than the observed score.
-    while ((((good_score_is_low == TRUE) && (observed_score > null_score)) ||
-	    ((good_score_is_low == FALSE) && (observed_score < null_score))) &&
+    while ((((good_score_is_low == true) && (observed_score >= null_score)) ||
+	    ((good_score_is_low == false) && (observed_score <= null_score))) &&
 	   (i_null < num_null)) {
       i_null++;
       if (i_null < num_null) {
@@ -518,7 +484,7 @@ void convert_scores_to_pvalues
     ATYPE pvalue = (ATYPE)(i_null + 1) / (ATYPE)(num_null + 1);
     set_array_item(i_observed, pvalue, observed_scores);
   }
-}
+} // convert_scores_to_pvalues
 
 /*****************************************************************************
  * MAIN
@@ -526,7 +492,6 @@ void convert_scores_to_pvalues
 #ifdef MAIN
 
 #include "simple-getopt.h"
-VERBOSE_T verbosity = INVALID_VERBOSE;
 
 int main
   (int    argc,
@@ -535,16 +500,15 @@ int main
 
   // Default parameter settings.
   char*     null_filename = NULL; // By default, assume p-value input.
-  BOOLEAN_T good_score_is_low = TRUE; // By default, good score is low.
-  BOOLEAN_T compute_fdr = FALSE;  // By default, compute p-value.
-  BOOLEAN_T use_pi_zero = FALSE; // By default, compute q-value, not just FDR.
+  bool good_score_is_low = true; // By default, good score is low.
+  bool compute_fdr = false;  // By default, compute p-value.
+  bool use_pi_zero = false; // By default, compute q-value, not just FDR.
   char*     pi_zero_filename = NULL; //  Store pi-zero in the given file.
   int       num_bootstraps = NUM_BOOTSTRAPS;
   int       num_header_lines = 0;
   int       pvalue_column = 0; // Indexed from 0.
-  BOOLEAN_T append_output = FALSE; // Append q-values to end of input line?
+  bool append_output = false; // Append q-values to end of input line?
   long      seed = time(0);
-  verbosity = NORMAL_VERBOSE;
 
   const int num_options = 11;
   cmdoption const options[] = {
@@ -583,7 +547,7 @@ int main
   int option_index = 0;
   char* option_name = NULL;
   char* option_value = NULL;
-  const char *  message = NULL;
+  const char* message = NULL;
   simple_setopt(argc, argv, num_options, options);
   while(1) {
     // Read the next option, and break if we're done.
@@ -592,28 +556,28 @@ int main
       break;
     } else if (c < 0) {
       simple_getopterror(&message);
-      die("Error processing command line options (%s)\n", message);
+      die("Error processing command line options: %s\n", message);
     }
 
     if (strcmp(option_name, "null") == 0) {
       null_filename = option_value;
     } else if (strcmp(option_name, "good-score") == 0) {
       if (strcmp(option_value, "high") == 0) {
-	good_score_is_low = FALSE;
+	good_score_is_low = false;
       } else if (strcmp(option_value, "low") == 0) {
-	good_score_is_low = TRUE;
+	good_score_is_low = true;
       } else {
 	fprintf(stderr, "Invalid option (--good-score %s)\n",
 		option_value);
       Rf_error("exit:%d", 1);
       }
     } else if (strcmp(option_name, "pi-zero") == 0) {
-      use_pi_zero = TRUE;
+      use_pi_zero = true;
     } else if (strcmp(option_name, "pi-zero-file") == 0) {
-      use_pi_zero = TRUE;
+      use_pi_zero = true;
       pi_zero_filename = option_value;
     } else if (strcmp(option_name, "fdr") == 0) {
-      compute_fdr = TRUE;
+      compute_fdr = true;
     } else if (strcmp(option_name, "bootstraps") == 0) {
       num_bootstraps = atoi(option_value);
     } else if (strcmp(option_name, "header") == 0) {
@@ -621,7 +585,7 @@ int main
     } else if (strcmp(option_name, "column") == 0) {
       pvalue_column = atoi(option_value) - 1; // User inputs indexed from 1.
     } else if (strcmp(option_name, "append") == 0) {
-      append_output = TRUE;
+      append_output = true;
     } else if (strcmp(option_name, "seed") == 0) {
       seed = atoi(option_value);
     } else if (strcmp(option_name, "verbosity") == 0) {
@@ -678,10 +642,10 @@ int main
   }
 
   // Sort the p-values, if necessary.
-  if (!is_sorted(TRUE, pvalues)) {
-    sort_array(FALSE, pvalues);
-    if (append_output == TRUE) {
-      sort_string_list_by_score(input_lines, good_score_is_low != TRUE);
+  if (!is_sorted(true, pvalues)) {
+    sort_array(false, pvalues);
+    if (append_output == true) {
+      sort_string_list_by_score(input_lines, good_score_is_low != true);
     }
   }
 

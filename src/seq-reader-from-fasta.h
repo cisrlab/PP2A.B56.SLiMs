@@ -19,9 +19,16 @@
  * sequence segments from a FASTA file.
  *****************************************************************************/
 DATA_BLOCK_READER_T *new_seq_reader_from_fasta(
-  BOOLEAN_T parse_genomic_coord, 
+  bool parse_genomic_coord, 
   ALPH_T* alph, 
   const char *filename
+);
+
+/******************************************************************************
+ * This function closes a sequence FASTA reader UDT.
+ *****************************************************************************/
+bool close_seq_reader_from_fasta(
+  DATA_BLOCK_READER_T *reader
 );
 
 /******************************************************************************
@@ -29,7 +36,7 @@ DATA_BLOCK_READER_T *new_seq_reader_from_fasta(
  * the chromosome name and starting position if the header has the format
  *	"chrXX:start-end", where start and end are positive integers.
  *****************************************************************************/
-BOOLEAN_T parse_genomic_coordinates_helper(
+bool parse_genomic_coordinates_helper(
   char* header,           // FASTA sequence header
   char** chr_name,  	  // chromosome name ((chr[^:]))
   size_t * chr_name_len_ptr, // number of characters in chromosome name
@@ -43,7 +50,7 @@ BOOLEAN_T parse_genomic_coordinates_helper(
  *
  * Return: Was the sequence read completely?
  ****************************************************************************/
-BOOLEAN_T read_raw_sequence_from_reader(
+bool read_raw_sequence_from_reader(
    DATA_BLOCK_READER_T *fasta_reader, // Sequence source
    unsigned int max_chars, // Maximum chars in raw_sequence.
    char* raw_sequence // Pre-allocated sequence.

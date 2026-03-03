@@ -41,7 +41,7 @@ struct rbtree_t {
  * is the root of the tree.
  */
 struct rbnode_t {
-  BOOLEAN_T is_red; // true if the node is a red node
+  bool is_red; // true if the node is a red node
   RBNODE_T *left;   // a child tree that has nodes with smaller keys than this one
   RBNODE_T *right;  // a child tree that has nodes with larger keys than this one
   RBNODE_T *parent; // the parent of this node in the tree
@@ -54,7 +54,7 @@ struct rbnode_t {
  * Debugging function. Checks that the node and all subnodes are consistant with a red-black tree's structure.
  * Should only be called by rbtree_check.
  */
-static int check_recursive(RBNODE_T *node, BOOLEAN_T must_be_black, 
+static int check_recursive(RBNODE_T *node, bool must_be_black, 
     int (*cmp)(const void*, const void*), int *black_nodes_to_leaf) {
   if (node->is_red && must_be_black) die("A node that must be black is red\n");
   int count = 1, left_black_nodes = 0, right_black_nodes = 0;
@@ -87,7 +87,7 @@ void rbtree_check(RBTREE_T *tree) {
   } else {
     if (tree->root->parent != NULL) die("Root node has parent\n");
     int black_nodes_to_leaf = 0;
-    int count = check_recursive(tree->root, TRUE, tree->key_compare, &black_nodes_to_leaf);
+    int count = check_recursive(tree->root, true, tree->key_compare, &black_nodes_to_leaf);
     if (count != tree->size)
       die("Mismatch between recorded size and actual node count\n");
   }
@@ -296,11 +296,11 @@ static inline void fix_consecutive_reds(RBTREE_T *tree, RBNODE_T *node) {
   RBNODE_T *current, *parent, *uncle, *grandparent, *greatgrandparent;
   current = node;
   parent = node->parent; // assumes this is non-null
-  while (TRUE) {
+  while (true) {
     grandparent = parent->parent;
     if (grandparent == NULL) {
       // parent must be root node, we have fixed everything below so exit
-      parent->is_red = FALSE;
+      parent->is_red = false;
       return;
     }
     // find the opposing branch (uncle)
@@ -308,11 +308,11 @@ static inline void fix_consecutive_reds(RBTREE_T *tree, RBNODE_T *node) {
     else uncle = grandparent->left;
 
     if (uncle != NULL && uncle->is_red) {
-      parent->is_red = FALSE;
-      uncle->is_red = FALSE;
+      parent->is_red = false;
+      uncle->is_red = false;
       greatgrandparent = grandparent->parent;
       if (greatgrandparent != NULL) {
-        grandparent->is_red = TRUE;
+        grandparent->is_red = true;
         if (greatgrandparent->is_red) {
           current = grandparent;
           parent = greatgrandparent;
@@ -322,24 +322,24 @@ static inline void fix_consecutive_reds(RBTREE_T *tree, RBNODE_T *node) {
     } else if (current == parent->left) {
       if (parent == grandparent->left) {
         rotate_tree_right(tree, grandparent);
-        parent->is_red = FALSE;
-        grandparent->is_red = TRUE;
+        parent->is_red = false;
+        grandparent->is_red = true;
       } else {
         rotate_tree_right(tree, parent);
         rotate_tree_left(tree, grandparent);
-        current->is_red = FALSE;
-        grandparent->is_red = TRUE;
+        current->is_red = false;
+        grandparent->is_red = true;
       }
     } else {
       if (parent == grandparent->left) {
         rotate_tree_left(tree, parent);
         rotate_tree_right(tree, grandparent);
-        current->is_red = FALSE;
-        grandparent->is_red = TRUE;
+        current->is_red = false;
+        grandparent->is_red = true;
       } else {
         rotate_tree_left(tree, grandparent);
-        parent->is_red = FALSE;
-        grandparent->is_red = TRUE;
+        parent->is_red = false;
+        grandparent->is_red = true;
       }
     }
     return;
@@ -352,24 +352,24 @@ static inline void fix_consecutive_reds(RBTREE_T *tree, RBNODE_T *node) {
  * node will be created using the key. If created is non-null then it will be set to true
  * when a new node is created.
  */
-RBNODE_T* rbtree_lookup(RBTREE_T *tree, void *key, BOOLEAN_T create, BOOLEAN_T *created) {
+RBNODE_T* rbtree_lookup(RBTREE_T *tree, void *key, bool create, bool *created) {
   RBNODE_T *current, *next;
-  BOOLEAN_T left = FALSE;
+  bool left = false;
   int cmp;
   current = NULL;
-  left = FALSE; //stop a compilier warning (though left is always initilized before use anyway)
+  left = false; //stop a compilier warning (though left is always initilized before use anyway)
   next = tree->root;
   while (next != NULL) {
     current = next;
     cmp = tree->key_compare(key, current->key);
     if (cmp == 0) { // found the key!
-      if (created != NULL) *created = FALSE;
+      if (created != NULL) *created = false;
       return current;
     } else if (cmp < 0) {
-      left = TRUE;
+      left = true;
       next = current->left;
     } else {
-      left = FALSE;
+      left = false;
       next = current->right;
     }
   }
@@ -385,11 +385,11 @@ RBNODE_T* rbtree_lookup(RBTREE_T *tree, void *key, BOOLEAN_T create, BOOLEAN_T *
       next->key = key;
     }
     if (current == NULL) { // new root
-      next->is_red = FALSE;
+      next->is_red = false;
       next->parent = NULL;
       tree->root = next;
     } else { // new internal node
-      next->is_red = TRUE;
+      next->is_red = true;
       next->parent = current;
       if (left) current->left = next;
       else current->right = next;
@@ -397,10 +397,10 @@ RBNODE_T* rbtree_lookup(RBTREE_T *tree, void *key, BOOLEAN_T create, BOOLEAN_T *
     }
     tree->size += 1;
     // set the created output value
-    if (created != NULL) *created = TRUE;
+    if (created != NULL) *created = true;
     return next;
   }
-  if (created != NULL) *created = FALSE;
+  if (created != NULL) *created = false;
   return NULL;
 }
 
@@ -409,7 +409,7 @@ RBNODE_T* rbtree_lookup(RBTREE_T *tree, void *key, BOOLEAN_T create, BOOLEAN_T *
  * find and return a node in the tree but return NULL if it does not exist.
  */
 RBNODE_T* rbtree_find(RBTREE_T *tree, const void *key) {
-  return rbtree_lookup(tree, (void*)key, FALSE, NULL);
+  return rbtree_lookup(tree, (void*)key, false, NULL);
 }
 
 /*
@@ -418,7 +418,7 @@ RBNODE_T* rbtree_find(RBTREE_T *tree, const void *key) {
  */
 void *rbtree_get(RBTREE_T *tree, const void *key) {
   RBNODE_T *node;
-  node = rbtree_lookup(tree, (void*)key, FALSE, NULL);
+  node = rbtree_lookup(tree, (void*)key, false, NULL);
   if (node == NULL) return NULL;
   return node->value;
 }
@@ -461,8 +461,8 @@ void rbtree_set(RBTREE_T *tree, RBNODE_T *node, void *value) {
  */
 RBNODE_T* rbtree_put(RBTREE_T *tree, void *key, void *value) {
   RBNODE_T *node;
-  BOOLEAN_T created;
-  node = rbtree_lookup(tree, key, TRUE, &created);
+  bool created;
+  node = rbtree_lookup(tree, key, true, &created);
   rbtree_set(tree, node, value);
   if (!created) {
     // duplicate key, see if we need to free it
@@ -479,15 +479,15 @@ RBNODE_T* rbtree_put(RBTREE_T *tree, void *key, void *value) {
  * Makes a new entry in the tree.
  * Returns true on succes, false otherwise.
  */
-BOOLEAN_T rbtree_make(RBTREE_T *tree, void *key, void *value) {
+bool rbtree_make(RBTREE_T *tree, void *key, void *value) {
   RBNODE_T *node;
-  BOOLEAN_T created;
-  node = rbtree_lookup(tree, key, TRUE, &created);
+  bool created;
+  node = rbtree_lookup(tree, key, true, &created);
   if (created) {
     rbtree_set(tree, node, value);
-    return TRUE;
+    return true;
   }
-  return FALSE;
+  return false;
 }
 
 /*
@@ -502,13 +502,13 @@ static inline void fix_double_black(RBTREE_T *tree, RBNODE_T *double_black_node)
   current = double_black_node;
   parent = double_black_node->parent;
 
-  while (TRUE) {
+  while (true) {
     if (current == parent->left) { // current is the left child of parent
       sibling = parent->right;
       if (sibling->is_red) {
         // the sibling is red, which we don't want... rearrange the structure so it's black
-        parent->is_red = TRUE;
-        sibling->is_red = FALSE;
+        parent->is_red = true;
+        sibling->is_red = false;
         rotate_tree_left(tree, parent);
         sibling = parent->right;
       }
@@ -517,22 +517,22 @@ static inline void fix_double_black(RBTREE_T *tree, RBNODE_T *double_black_node)
       if (far_nephew && far_nephew->is_red) {
         rotate_tree_left(tree, parent);
         sibling->is_red = parent->is_red;
-        parent->is_red = FALSE;
-        far_nephew->is_red = FALSE;
+        parent->is_red = false;
+        far_nephew->is_red = false;
         return;
       } else if (near_nephew && near_nephew->is_red) {
         rotate_tree_right(tree, sibling);
         rotate_tree_left(tree, parent);
         near_nephew->is_red = parent->is_red;
-        parent->is_red = FALSE;
+        parent->is_red = false;
         return;
       }
     } else { // current is the right child of parent
       sibling = parent->left;
       if (sibling->is_red) {
         // the sibling is red, which we don't want... rearrange the structure so it's black
-        parent->is_red = TRUE;
-        sibling->is_red = FALSE;
+        parent->is_red = true;
+        sibling->is_red = false;
         rotate_tree_right(tree, parent);
         sibling = parent->left;
       }
@@ -541,21 +541,21 @@ static inline void fix_double_black(RBTREE_T *tree, RBNODE_T *double_black_node)
       if (far_nephew && far_nephew->is_red) {
         rotate_tree_right(tree, parent);
         sibling->is_red = parent->is_red;
-        parent->is_red = FALSE;
-        far_nephew->is_red = FALSE;
+        parent->is_red = false;
+        far_nephew->is_red = false;
         return;
       } else if (near_nephew && near_nephew->is_red) {
         rotate_tree_left(tree, sibling);
         rotate_tree_right(tree, parent);
         near_nephew->is_red = parent->is_red;
-        parent->is_red = FALSE;
+        parent->is_red = false;
         return;
       }
     }
     // neither nephew is red so both must be black
-    sibling->is_red = TRUE;
+    sibling->is_red = true;
     if (parent->is_red) {
-      parent->is_red = FALSE;
+      parent->is_red = false;
       return;
     }
     //parent is now double black as it was black already!
@@ -602,13 +602,13 @@ static void delete_internal(RBTREE_T *tree, RBNODE_T *node) {
     else if (parent->left == node) parent->left = left;
     else parent->right = left;
     left->parent = parent;
-    if (!(node->is_red)) left->is_red = FALSE;
+    if (!(node->is_red)) left->is_red = false;
   } else if (left == NULL) { // right subnode exists, move it up to replace
     if (parent == NULL) tree->root = right;
     else if (parent->left == node) parent->left = right;
     else parent->right = right;
     right->parent = parent;
-    if (!(node->is_red)) right->is_red = FALSE;
+    if (!(node->is_red)) right->is_red = false;
   } else {
     //note that when we only had one child node we could be certain
     //that the balance wasn't made worse by simply swapping it in but
@@ -670,14 +670,14 @@ void rbtree_delete(RBTREE_T *tree, RBNODE_T *node, void **removed_key, void **re
  * are freed by free_key and free_value if these functions were set in the constructor.
  * Returns true if the key existed.
  */
-BOOLEAN_T rbtree_remove(RBTREE_T *tree, void *key) {
+bool rbtree_remove(RBTREE_T *tree, void *key) {
   RBNODE_T *node;
-  node = rbtree_lookup(tree, key, FALSE, NULL);
+  node = rbtree_lookup(tree, key, false, NULL);
   if (node) {
     rbtree_delete(tree, node, NULL, NULL);
-    return TRUE;
+    return true;
   }
-  return FALSE;
+  return false;
 }
 
 /*
@@ -711,7 +711,7 @@ RBNODE_T *rbtree_last(RBTREE_T *tree) {
 RBNODE_T *rbtree_next(RBNODE_T *node) {
   RBNODE_T *parent;
   if (node->right == NULL) {
-    //no right branch so find the first parent that has this tree as it's left branch
+    // no right branch so find the first parent that has this tree as it's left branch
     parent = node->parent;
     while (parent != NULL && parent->right == node) {
       node = parent;
@@ -720,7 +720,7 @@ RBNODE_T *rbtree_next(RBNODE_T *node) {
     // node is the left tree of parent so parent is next larger
     return parent;
   } else {
-    //has right branch, so next is the left-most on the right
+    // has right branch, so next is the left-most on the right
     node = node->right;
     while (node->left) node = node->left;
     return node;
@@ -821,7 +821,7 @@ int rbtree_charcmp(const void *p1, const void *p2) {
  * rbtree_charcpy
  * Utility function for using the red-black tree with pointers to characters.
  * Note that the free function can be used as the counterpart.
- * Returns a malloc'ed copy of the passed char.
+ * Returns a mm_malloc'ed copy of the passed char.
  */
 void* rbtree_charcpy(void *p) {
   char *copy = (char*)mm_malloc(sizeof(char));
@@ -870,7 +870,7 @@ int rbtree_longcmp(const void *p1, const void *p2) {
  * rbtree_intcpy
  * Utility function for using the red-black tree with pointers to integers.
  * Note that the free function can be used as the counterpart.
- * Returns a malloc'ed copy of the passed int.
+ * Returns a mm_malloc'ed copy of the passed int.
  */
 void* rbtree_intcpy(void *p) {
   int *copy = (int*)mm_malloc(sizeof(int));
@@ -882,7 +882,7 @@ void* rbtree_intcpy(void *p) {
  * rbtree_longcpy
  * Utility function for using the red-black tree with pointers to integers.
  * Note that the free function can be used as the counterpart.
- * Returns a malloc'ed copy of the passed int.
+ * Returns a mm_malloc'ed copy of the passed int.
  */
 void* rbtree_longcpy(void *p) {
   long *copy = (long*)mm_malloc(sizeof(long));
@@ -894,7 +894,7 @@ void* rbtree_longcpy(void *p) {
  * rbtree_dblcpy
  * Utility function for using the red-black tree with pointers to doubles.
  * Note that the free function can be used as the counterpart.
- * Returns a malloc'ed copy of the passed double.
+ * Returns a mm_malloc'ed copy of the passed double.
  */
 void* rbtree_dblcpy(void *p) {
   double *copy = (double*)mm_malloc(sizeof(double));

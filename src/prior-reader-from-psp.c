@@ -18,13 +18,14 @@
 #include "prior-reader-from-psp.h"
 
 typedef struct psp_data_block_reader {
-  BOOLEAN_T at_start_of_line;
-  BOOLEAN_T parse_genomic_coord;
+  double default_prior;
+  bool at_start_of_line;
+  bool parse_genomic_coord;
   char* filename;
-  size_t filename_len; // Includes trailing '\0'
+  size_t filename_len;		// Includes trailing '\0'
   size_t filename_buffer_len;
   char* sequence_header;
-  size_t sequence_header_len; // Includes trailing '\0'
+  size_t sequence_header_len;	// Includes trailing '\0'
   size_t sequence_buffer_len;
   size_t sequence_name_len;
   FILE *psp_file;
@@ -36,27 +37,33 @@ typedef struct psp_data_block_reader {
 // Forward declarations
 
 // "Virtual" functions for DATA_BLOCK_READER
-BOOLEAN_T get_next_data_block_from_psp(DATA_BLOCK_READER_T *reader, DATA_BLOCK_T *data_block);
-BOOLEAN_T unget_data_block_from_psp(DATA_BLOCK_READER_T *reader);
-BOOLEAN_T go_to_next_sequence_in_psp(DATA_BLOCK_READER_T *reader);
-BOOLEAN_T get_seq_name_from_psp(DATA_BLOCK_READER_T *reader, char **name /*OUT*/);
-BOOLEAN_T prior_reader_from_psp_is_eof(DATA_BLOCK_READER_T *reader);
-BOOLEAN_T reset_prior_reader_from_psp(DATA_BLOCK_READER_T *reader);
-BOOLEAN_T close_prior_reader_from_psp(DATA_BLOCK_READER_T *reader);
+bool get_next_data_block_from_psp(DATA_BLOCK_READER_T *reader, DATA_BLOCK_T *data_block);
+bool unget_data_block_from_psp(DATA_BLOCK_READER_T *reader);
+bool go_to_next_sequence_in_psp(DATA_BLOCK_READER_T *reader);
+bool get_seq_name_from_psp(DATA_BLOCK_READER_T *reader, char **name /*OUT*/);
+bool prior_reader_from_psp_is_eof(DATA_BLOCK_READER_T *reader);
+bool reset_prior_reader_from_psp(DATA_BLOCK_READER_T *reader);
+bool close_prior_reader_from_psp(DATA_BLOCK_READER_T *reader);
 void free_prior_reader_from_psp(DATA_BLOCK_READER_T *reader);
 
 // Functions peculiar to PSP reader
-BOOLEAN_T read_seq_header_from_psp(PSP_DATA_BLOCK_READER_T *psp_reader);
-static BOOLEAN_T parse_genomic_coordinates(PSP_DATA_BLOCK_READER_T *psp_reader);
-static BOOLEAN_T parse_seq_name(PSP_DATA_BLOCK_READER_T *psp_reader);
+bool read_seq_header_from_psp(PSP_DATA_BLOCK_READER_T *psp_reader);
+static bool parse_genomic_coordinates(PSP_DATA_BLOCK_READER_T *psp_reader);
+static bool parse_seq_name(PSP_DATA_BLOCK_READER_T *psp_reader);
 
 /******************************************************************************
  * This function creates an instance of a data block reader UDT for reading
  * priors from a MEME PSP file.
  *****************************************************************************/
-DATA_BLOCK_READER_T *new_prior_reader_from_psp(BOOLEAN_T parse_genomic_coord, const char *filename) {
+DATA_BLOCK_READER_T *new_prior_reader_from_psp(
+  bool parse_genomic_coord, 
+  const char *filename, 
+  double default_prior
+) {
+
   PSP_DATA_BLOCK_READER_T *psp_reader = mm_malloc(sizeof(PSP_DATA_BLOCK_READER_T) * 1);
-  psp_reader->at_start_of_line = TRUE;
+  psp_reader->default_prior = default_prior;		// This must be first to match wig_reader
+  psp_reader->at_start_of_line = true;
   psp_reader->parse_genomic_coord = parse_genomic_coord;
   int filename_len = strlen(filename) + 1;
   psp_reader->filename = mm_malloc(sizeof(char)* filename_len);
@@ -112,8 +119,8 @@ void free_prior_reader_from_psp(DATA_BLOCK_READER_T *reader) {
 /******************************************************************************
  * This function closes a MEME PSP prior block reader UDT.
  *****************************************************************************/
-BOOLEAN_T close_prior_reader_from_psp(DATA_BLOCK_READER_T *reader) {
-  BOOLEAN_T result = FALSE;
+bool close_prior_reader_from_psp(DATA_BLOCK_READER_T *reader) {
+  bool result = false;
   PSP_DATA_BLOCK_READER_T *psp_reader 
     = (PSP_DATA_BLOCK_READER_T *) get_data_block_reader_data(reader);
   psp_reader->current_position = 0;
@@ -126,7 +133,7 @@ BOOLEAN_T close_prior_reader_from_psp(DATA_BLOCK_READER_T *reader) {
       );
     }
     else {
-      result = TRUE;
+      result = true;
     }
   }
   return result;
@@ -135,38 +142,38 @@ BOOLEAN_T close_prior_reader_from_psp(DATA_BLOCK_READER_T *reader) {
 /******************************************************************************
  * This function resets a MEME PSP prior block reader UDT.
  *****************************************************************************/
-BOOLEAN_T reset_prior_reader_from_psp(DATA_BLOCK_READER_T *reader) {
+bool reset_prior_reader_from_psp(DATA_BLOCK_READER_T *reader) {
   PSP_DATA_BLOCK_READER_T *psp_reader 
     = (PSP_DATA_BLOCK_READER_T *) get_data_block_reader_data(reader);
   rewind(psp_reader->psp_file);
   psp_reader->current_position = -1;
-  psp_reader->at_start_of_line = TRUE;
-  return TRUE;
+  psp_reader->at_start_of_line = true;
+  return true;
 }
 
 /******************************************************************************
  * This function reports on whether a prior reader has reached EOF
- * Returns TRUE if the reader is at EOF
+ * Returns true if the reader is at EOF
  *****************************************************************************/
-BOOLEAN_T prior_reader_from_psp_is_eof(DATA_BLOCK_READER_T *reader) {
+bool prior_reader_from_psp_is_eof(DATA_BLOCK_READER_T *reader) {
   PSP_DATA_BLOCK_READER_T *psp_reader 
     = (PSP_DATA_BLOCK_READER_T *) get_data_block_reader_data(reader);
-  return feof(psp_reader->psp_file) ? TRUE : FALSE;
+  return feof(psp_reader->psp_file) ? true : false;
 }
 
 /******************************************************************************
  * Read from the current position to the end of the current line.
  * Current position is assumed to be start of a new sequence.
  *
- * Returns TRUE if it was able to read the sequence text, FALSE if 
+ * Returns true if it was able to read the sequence text, false if 
  * EOF reached before the terminal newline was found. Dies if other errors
  * are encountered.
  *****************************************************************************/
-BOOLEAN_T read_seq_header_from_psp(
+bool read_seq_header_from_psp(
   PSP_DATA_BLOCK_READER_T *psp_reader
 ) {
 
-  int result = FALSE;
+  int result = false;
 
   // Initial allocation of sequence buffer
   const size_t initial_buffer_len = 100;
@@ -193,8 +200,8 @@ BOOLEAN_T read_seq_header_from_psp(
     if (c == '\n') {
       psp_reader->sequence_header[seq_index] = '\0';
       psp_reader->sequence_header_len = seq_index + 1;
-      psp_reader->at_start_of_line = TRUE;
-      result = TRUE;
+      psp_reader->at_start_of_line = true;
+      result = true;
       break;
     }
     else {
@@ -229,22 +236,22 @@ BOOLEAN_T read_seq_header_from_psp(
  * reader. The name of the sequence is passed using the name parameter.
  * The caller is responsible for freeing the memory for the sequence name.
  *
- * Returns TRUE if successful, FALSE if there is no current sequence, as 
+ * Returns true if successful, false if there is no current sequence, as 
  * at the start of the file.
  *****************************************************************************/
-BOOLEAN_T get_seq_name_from_psp(
+bool get_seq_name_from_psp(
   DATA_BLOCK_READER_T *reader, 
   char **name // OUT
 ) {
-  BOOLEAN_T result = FALSE;
+  bool result = false;
   PSP_DATA_BLOCK_READER_T *psp_reader 
     = (PSP_DATA_BLOCK_READER_T *) get_data_block_reader_data(reader);
   if (psp_reader->sequence_name == NULL || psp_reader->sequence_name_len <= 0) {
-    result = FALSE;
+    result = false;
   }
   else {
     *name = strdup(psp_reader->sequence_name);
-    result = TRUE;
+    result = true;
   }
 
   return result;
@@ -254,43 +261,43 @@ BOOLEAN_T get_seq_name_from_psp(
  * Read from the current position in the file to the first prior after the
  * start of the next sequence. Set the value of the current sequence.
  *
- * Returns TRUE if it was able to advance to the next sequence, FALSE if 
+ * Returns true if it was able to advance to the next sequence, false if 
  * EOF reached before the next sequence was found. Dies if other errors
  * encountered.
  *****************************************************************************/
-BOOLEAN_T go_to_next_sequence_in_psp(
+bool go_to_next_sequence_in_psp(
   DATA_BLOCK_READER_T *reader
 ) {
-  BOOLEAN_T result = FALSE;
+  bool result = false;
   PSP_DATA_BLOCK_READER_T *psp_reader 
     = (PSP_DATA_BLOCK_READER_T *) get_data_block_reader_data(reader);
   psp_reader->current_position = 0;
   int c = 0;
   while((c = fgetc(psp_reader->psp_file)) != EOF) {
-    if (psp_reader->at_start_of_line == TRUE && c == '>') {
+    if (psp_reader->at_start_of_line == true && c == '>') {
       break;
     }
     else if (c == '\n') {
-      psp_reader->at_start_of_line = TRUE;
+      psp_reader->at_start_of_line = true;
     }
     else {
-      psp_reader->at_start_of_line = FALSE;
+      psp_reader->at_start_of_line = false;
     }
   }
   // At this point c is '>' or EOF
   if (c == '>') {
-    BOOLEAN_T found_genomic_coordinates = FALSE;
+    bool found_genomic_coordinates = false;
     result = read_seq_header_from_psp(psp_reader);
-    if (result == TRUE && psp_reader->parse_genomic_coord) {
+    if (result == true && psp_reader->parse_genomic_coord) {
       // Look for genomic coordinates in header
       found_genomic_coordinates = parse_genomic_coordinates(psp_reader);
     }
-    if (found_genomic_coordinates == FALSE) {
+    if (found_genomic_coordinates == false) {
       //  Look for whitespace in header
       //  The sequence name is the string before the white space.
-      BOOLEAN_T found_name = FALSE;
+      bool found_name = false;
       found_name = parse_seq_name(psp_reader);
-      if (found_name == FALSE) {
+      if (found_name == false) {
         die(
             "Unable to find sequence name in header %s.\n",
             psp_reader->sequence_header
@@ -308,7 +315,7 @@ BOOLEAN_T go_to_next_sequence_in_psp(
     }
     else if (feof(psp_reader->psp_file)) {
         // Reached EOF before reaching the start of the sequence
-        result = FALSE;
+        result = false;
     }
   }
   return result;
@@ -317,16 +324,16 @@ BOOLEAN_T go_to_next_sequence_in_psp(
 /******************************************************************************
  * Reads in the next data block for the priors. 
  * 
- * Returns TRUE if it was able to read the block, FALSE if it reaches
+ * Returns true if it was able to read the block, false if it reaches
  * the next sequence or if the EOF.
  * Dies if other errors encountered.
  *****************************************************************************/
-BOOLEAN_T get_next_data_block_from_psp(
+bool get_next_data_block_from_psp(
   DATA_BLOCK_READER_T *reader, 
   DATA_BLOCK_T *data_block
 ) {
 
-  BOOLEAN_T result = FALSE;
+  bool result = false;
   const int buffer_size = 100;
   char buffer[buffer_size];
   int num_read = 0;
@@ -342,10 +349,10 @@ BOOLEAN_T get_next_data_block_from_psp(
 
     if (isspace(c)) {
       if (c == '\n') {
-        psp_reader->at_start_of_line = TRUE;
+        psp_reader->at_start_of_line = true;
       }
       else {
-        psp_reader->at_start_of_line = FALSE;
+        psp_reader->at_start_of_line = false;
       }
       continue;
     }
@@ -354,7 +361,7 @@ BOOLEAN_T get_next_data_block_from_psp(
     }
   }
 
-  if (c == '>' && psp_reader->at_start_of_line == TRUE) {
+  if (c == '>' && psp_reader->at_start_of_line == true) {
     // We found the start of a new sequence while trying
     // to find a prior.
     c = ungetc(c, psp_reader->psp_file);
@@ -382,10 +389,10 @@ BOOLEAN_T get_next_data_block_from_psp(
     }
 
     if (c == '\n') {
-      psp_reader->at_start_of_line = TRUE;
+      psp_reader->at_start_of_line = true;
     }
     else {
-      psp_reader->at_start_of_line = FALSE;
+      psp_reader->at_start_of_line = false;
     }
 
     buffer[buffer_index] = '\0';
@@ -406,7 +413,7 @@ BOOLEAN_T get_next_data_block_from_psp(
       num_read = 1;
       ++psp_reader->current_position;
       psp_reader->prev_block_position = save_pos;
-      result = TRUE;
+      result = true;
     }
 
   }
@@ -428,12 +435,12 @@ BOOLEAN_T get_next_data_block_from_psp(
  * Sets the state of the reader to the positon before the last data block was
  * read. Only the immediately previous get_next_data_block() can be undone.
  * 
- * Returns TRUE if it was able to undo the get_next_block(), FALSE otherwise.
+ * Returns true if it was able to undo the get_next_block(), false otherwise.
  * Dies if other errors encountered.
  *****************************************************************************/
-BOOLEAN_T unget_data_block_from_psp(DATA_BLOCK_READER_T *reader) {
+bool unget_data_block_from_psp(DATA_BLOCK_READER_T *reader) {
 
-  BOOLEAN_T result = FALSE;
+  bool result = false;
   PSP_DATA_BLOCK_READER_T *psp_reader 
     = (PSP_DATA_BLOCK_READER_T *) get_data_block_reader_data(reader);
 
@@ -451,7 +458,7 @@ BOOLEAN_T unget_data_block_from_psp(DATA_BLOCK_READER_T *reader) {
     else {
       --psp_reader->current_position;
       psp_reader->prev_block_position = 0;
-      result = TRUE;
+      result = true;
     }
   }
 
@@ -463,9 +470,9 @@ BOOLEAN_T unget_data_block_from_psp(DATA_BLOCK_READER_T *reader) {
  * current sequence header. If successful it will set the sequence
  * name to the chromosome name, and set the starting sequence position.
  *
- * Returns TRUE if it was able to find genomic coordinates, FALSE otherwise.
+ * Returns true if it was able to find genomic coordinates, false otherwise.
  *****************************************************************************/
-static BOOLEAN_T parse_genomic_coordinates(
+static bool parse_genomic_coordinates(
   PSP_DATA_BLOCK_READER_T *psp_reader
 ) {
 
@@ -473,14 +480,14 @@ static BOOLEAN_T parse_genomic_coordinates(
   #define ERROR_MESSAGE_SIZE 100
   #define BUFFER_SIZE 512
 
-  static BOOLEAN_T first_time = TRUE;
+  static bool first_time = true;
   static regex_t fasta_header_regex;
   static regmatch_t matches[NUM_SUBMATCHES];
 
   char error_message[ERROR_MESSAGE_SIZE];
   int status = 0;
 
-  if (first_time == TRUE) {
+  if (first_time == true) {
     // Initialize regular express for extracting chromsome coordinates;
     // Expected format is name:start-stop
     status = regcomp(
@@ -498,10 +505,10 @@ static BOOLEAN_T parse_genomic_coordinates(
       );
     }
 
-    first_time = FALSE;
+    first_time = false;
   }
 
-  BOOLEAN_T found_coordinates = FALSE;
+  bool found_coordinates = false;
   char* header = psp_reader->sequence_header;
   status = regexec(
     &fasta_header_regex, 
@@ -512,7 +519,7 @@ static BOOLEAN_T parse_genomic_coordinates(
   );
   if(!status) {
     // The sequence header contains genomic coordinates
-    found_coordinates = TRUE;
+    found_coordinates = true;
 
     // Copy chromosome name and position to reader
     char buffer[BUFFER_SIZE];
@@ -538,7 +545,7 @@ static BOOLEAN_T parse_genomic_coordinates(
     );
   }
   else {
-    found_coordinates = FALSE;
+    found_coordinates = false;
   }
 
   return found_coordinates;
@@ -553,9 +560,9 @@ static BOOLEAN_T parse_genomic_coordinates(
  * current sequence header. The sequence name is the string up to the first
  * white space in the sequence header.
  *
- * Returns TRUE if it was able to parse genomic coordinates, FALSE otherwise.
+ * Returns true if it was able to parse genomic coordinates, false otherwise.
  *****************************************************************************/
-static BOOLEAN_T parse_seq_name(
+static bool parse_seq_name(
   PSP_DATA_BLOCK_READER_T *psp_reader
 ) {
 
@@ -563,14 +570,14 @@ static BOOLEAN_T parse_seq_name(
   #define ERROR_MESSAGE_SIZE 100
   #define BUFFER_SIZE 512
 
-  static BOOLEAN_T first_time = TRUE;
+  static bool first_time = true;
   static regex_t ucsc_header_regex;
   static regmatch_t matches[NUM_SUBMATCHES];
 
   char error_message[ERROR_MESSAGE_SIZE];
   int status = 0;
 
-  if (first_time == TRUE) {
+  if (first_time == true) {
     // Initialize regular express for extracting chromsome coordinates;
     // Expected format is based on fastaFromBed name:start-stop[(+|-)][_id]
     // e.g., ">chr1:1000-1010(-)_xyz"
@@ -591,10 +598,10 @@ static BOOLEAN_T parse_seq_name(
       );
     }
 
-    first_time = FALSE;
+    first_time = false;
   }
 
-  BOOLEAN_T found_name = FALSE;
+  bool found_name = false;
   char* header = psp_reader->sequence_header;
   status = regexec(
     &ucsc_header_regex, 
@@ -605,7 +612,7 @@ static BOOLEAN_T parse_seq_name(
   );
   if(!status) {
     // The sequence header contains genomic coordinates
-    found_name = TRUE;
+    found_name = true;
 
     // Copy sequence name to reader
     char buffer[BUFFER_SIZE];
@@ -631,7 +638,7 @@ static BOOLEAN_T parse_seq_name(
     );
   }
   else {
-    found_name = FALSE;
+    found_name = false;
   }
 
   return found_name;

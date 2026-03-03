@@ -364,11 +364,11 @@ int ld_version(char *value, void *data) {
 void parse_attributes(void (*error)(void *, int, const char*, const char*, const char*), 
     void *state, char *tag, const xmlChar **attrs, 
     int count, char **names, int (**parsers)(char*, void*), void **parser_data, 
-    BOOLEAN_T *required, BOOLEAN_T *done) {
+    bool *required, bool *done) {
   int i, found;
-  BOOLEAN_T done_data[count];
+  bool done_data[count];
   if (done == NULL) done = done_data;
-  for (i = 0; i < count; ++i) done[i] = FALSE;
+  for (i = 0; i < count; ++i) done[i] = false;
   for (i = 0; attrs[i] != NULL; i += 2) {
     found = binary_search(attrs+i, names, count, sizeof(char*), compare_pstrings);
     if (found >= 0) {
@@ -378,7 +378,7 @@ void parse_attributes(void (*error)(void *, int, const char*, const char*, const
         error(state, PARSE_ATTR_DUPLICATE, tag, names[found], NULL);
         continue;
       }
-      done[found] = TRUE;
+      done[found] = true;
       parser = parsers[found];
       data = parser_data[found];
       if (parser((char*)attrs[i+1], data)) {

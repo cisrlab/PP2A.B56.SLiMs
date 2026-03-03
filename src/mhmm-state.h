@@ -70,7 +70,7 @@ extern int NUM_HMM_T;
 
 struct mhmm {
   HMM_T          type;          // LINEAR_HMM or COMPLETE_HMM 
-  BOOLEAN_T      log_odds;      // Is this HMM in log-odds form? 
+  bool      log_odds;      // Is this HMM in log-odds form? 
   int            num_motifs;    // Number of motifs in this HMM.
   int            num_states;    // Total number of states. 
   int            num_spacers;   // Number of spacer states. 
@@ -101,7 +101,7 @@ MHMM_T* allocate_mhmm(ALPH_T* alph, int num_states);
  * Returns a pointer to local static storage.
  ************************************************************************/
 char* get_state_motif_id
-  (BOOLEAN_T     stranded,
+  (bool     stranded,
    MHMM_STATE_T* this_state);
 
 /************************************************************************
@@ -144,7 +144,7 @@ void free_mhmm
  ************************************************************************/
 void compute_ins_and_outs
   (MHMM_T*the_hmm,
-   const BOOLEAN_T log_form); /* Is the transition matrix in log form? */
+   const bool log_form); /* Is the transition matrix in log form? */
 
 /*************************************************************************
  * Given an HMM state, choose the most frequently occuring character.
@@ -154,7 +154,7 @@ void compute_ins_and_outs
  *************************************************************************/
 char choose_consensus
   (ALPH_T*        alph,
-   BOOLEAN_T      log_space, /* Choose based on log-odds probs. */
+   bool      log_space, /* Choose based on log-odds probs. */
    MHMM_STATE_T * a_state);  /* State to be analyzed. */
 
 /*************************************************************************
@@ -162,7 +162,7 @@ char choose_consensus
  * free-insertion modules; i.e., spacer states in which the
  * self-transition and the exit transition are 1.0.
  *************************************************************************/
-BOOLEAN_T has_fims
+bool has_fims
   (MHMM_T* the_hmm);
 
 /************************************************************************

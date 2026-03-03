@@ -18,7 +18,7 @@
   LOGODDS matrices
 */
  // number of log-odds matrices allowed 
-#define MAXLO MAXG
+#define MAXLO 101
 /* 
   single-letter logodds matrix 
 */
@@ -62,8 +62,8 @@ typedef struct lo {
   // that was silly and people were responsible enough not to abuse this field
   // by putting in nonsensical values.
   int alen; // could equal alph_size_core, alph_size_wild or alph_size_full
-  bool pair; // pair of motifs: m_ij/b_j followed by m_ij/n_ij 
-  char *meme_name; // the name from the meme file 
+  char *meme_name; // the ID from the meme file 
+  char *meme_id2; // the ID2 from the meme file 
   int imotif; // loading order of the motif 
   int w; // width of motif 
   int ws; // width of motif in sequence 

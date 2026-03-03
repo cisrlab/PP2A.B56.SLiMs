@@ -12,6 +12,7 @@
 
 #include "array.h"
 #include <stdio.h>
+#include <stdbool.h>
 
 #define MTYPE ATYPE
 #define MSCAN ASCAN
@@ -157,7 +158,7 @@ void set_matrix_column
  * Turn an array into a matrix.
  ***********************************************************************/
 MATRIX_T* array_to_matrix
-  (BOOLEAN_T one_row, /* Put the array in one row, or in many. */
+  (bool one_row, /* Put the array in one row, or in many. */
    ARRAY_T*  array);
 
 /**************************************************************************
@@ -199,8 +200,8 @@ ARRAY_T* extract_diagonal
 /**************************************************************************
  * Determine whether a given matrix is symmetric.
  **************************************************************************/
-BOOLEAN_T is_symmetric
-  (BOOLEAN_T verbose,
+bool is_symmetric
+  (bool verbose,
    MTYPE     slop,
    MATRIX_T* matrix);
 
@@ -221,7 +222,7 @@ void add_to_diagonal
 /***********************************************************************
  * Determine whether two matrices are equal, within a given bound.
  ***********************************************************************/
-BOOLEAN_T equal_matrices
+bool equal_matrices
   (ATYPE    close_enough,
    MATRIX_T* matrix1,
    MATRIX_T* matrix2);
@@ -252,7 +253,7 @@ void mult_matrix
  * Convert a given matrix to or from logs.
  **************************************************************************/
 void convert_to_from_log_matrix
-  (BOOLEAN_T  to_log,
+  (bool  to_log,
    MATRIX_T*  the_matrix,
    MATRIX_T*  the_log_matrix);
 
@@ -287,7 +288,7 @@ void print_matrix
   (MATRIX_T* matrix,        /* The matrix to be printed. */
    int       width,         /* Width of each cell. */
    int       precision,     /* Precision of each cell. */
-   BOOLEAN_T print_titles,  /* Include row and column indices? */
+   bool print_titles,  /* Include row and column indices? */
    FILE*     outfile);      /* File to which to write. */
 
 /**************************************************************************
@@ -380,7 +381,7 @@ ARRAY_T* get_matrix_col_sums
  * Sort a given matrix by row, according to a given set of sort keys.
  *****************************************************************************/
 void sort_matrix_rows
-  (BOOLEAN_T reverse_sort,
+  (bool reverse_sort,
    ARRAY_T*  keys,
    MATRIX_T* matrix);
 
@@ -395,11 +396,11 @@ void sort_matrix_rows
 void permute_matrix(MATRIX_T *matrix, bool cols, int *permutation, int count);
 
 /*****************************************************************************
- * Randomly shuffle the rows or columns of a matrix. If the boolean cols is TRUE
+ * Randomly shuffle the rows or columns of a matrix. If the boolean cols is true
  * shuffle the columns else shuffle the rows
  *****************************************************************************/
 void shuffle_matrix_cols
-(MATRIX_T* matrix, BOOLEAN_T cols);
+(MATRIX_T* matrix, bool cols);
 
 /*****************************************************************************
  * Randomly shuffle the entries of a given matrix.

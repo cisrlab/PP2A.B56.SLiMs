@@ -22,8 +22,8 @@
  * the list or NULL if it is the last link.
  */
 struct link_t {
-  LINK_T *before;
-  LINK_T *after;
+  LL_LINK_T *before;
+  LL_LINK_T *after;
   void *item;
 };
 
@@ -38,15 +38,15 @@ struct link_t {
  */
 struct linklst_t {
   int size;
-  LINK_T *first;
-  LINK_T *last;
+  LL_LINK_T *first;
+  LL_LINK_T *last;
 };
 
 /*
  * Creates a link
  */
-LINK_T *link_create(LINK_T *before, LINK_T *after, void *item) {
-  LINK_T *link = (LINK_T*)mm_malloc(sizeof(LINK_T));
+LL_LINK_T *link_create(LL_LINK_T *before, LL_LINK_T *after, void *item) {
+  LL_LINK_T *link = (LL_LINK_T*)mm_malloc(sizeof(LL_LINK_T));
   link->before = before;
   link->after = after;
   link->item = item;
@@ -58,8 +58,8 @@ LINK_T *link_create(LINK_T *before, LINK_T *after, void *item) {
 /*
  * Destroys a link
  */
-void link_destroy(LINK_T *link) {
-    memset(link, 0, sizeof(LINK_T));
+void link_destroy(LL_LINK_T *link) {
+    memset(link, 0, sizeof(LL_LINK_T));
     free(link);
 }
 
@@ -78,8 +78,8 @@ LINKLST_T *linklst_create() {
  * Destroys a linked list, using the passed function to free the items
  */
 void linklst_destroy_all(LINKLST_T *linklst, void(*free_item)(void *)) {
-  LINK_T *current = linklst->first; 
-  LINK_T *next;
+  LL_LINK_T *current = linklst->first; 
+  LL_LINK_T *next;
   while (current != NULL) {
     next = current->after; 
     free_item(current->item);
@@ -113,14 +113,14 @@ int linklst_size(LINKLST_T *linklst) {
 /*
  * Gets the first link in the list
  */
-LINK_T *linklst_first(LINKLST_T *linklst) {
+LL_LINK_T *linklst_first(LINKLST_T *linklst) {
   return linklst->first;
 }
 
 /*
  * Gets the last link in the list
  */
-LINK_T *linklst_last(LINKLST_T *linklst) {
+LL_LINK_T *linklst_last(LINKLST_T *linklst) {
   return linklst->last;
 }
 
@@ -130,9 +130,9 @@ LINK_T *linklst_last(LINKLST_T *linklst) {
  * Note that the link must have come from this linked
  * list or bad things will happen!
  */
-LINK_T *linklst_add_after(void *item, LINK_T *before, LINKLST_T *linklst) {
-  LINK_T *after = before->after;
-  LINK_T *link =  link_create(before, after, item); 
+LL_LINK_T *linklst_add_after(void *item, LL_LINK_T *before, LINKLST_T *linklst) {
+  LL_LINK_T *after = before->after;
+  LL_LINK_T *link =  link_create(before, after, item); 
   if (after == NULL) linklst->last = link;
   linklst->size += 1;
   return link;
@@ -144,9 +144,9 @@ LINK_T *linklst_add_after(void *item, LINK_T *before, LINKLST_T *linklst) {
  * Note that the link must have come from this linked
  * list or bad things will happen!
  */
-LINK_T *linklst_add_before(void *item, LINK_T *after, LINKLST_T *linklst) {
-  LINK_T *before = after->before;
-  LINK_T *link = link_create(before, after, item);
+LL_LINK_T *linklst_add_before(void *item, LL_LINK_T *after, LINKLST_T *linklst) {
+  LL_LINK_T *before = after->before;
+  LL_LINK_T *link = link_create(before, after, item);
   if (before == NULL) linklst->first = link;
   linklst->size += 1;
   return link;
@@ -156,10 +156,10 @@ LINK_T *linklst_add_before(void *item, LINK_T *after, LINKLST_T *linklst) {
  * Add the item to the end of the linked list
  * and return the new link.
  */
-LINK_T *linklst_add(void *item, LINKLST_T *linklst) {
-  LINK_T *before = linklst->last;
-  LINK_T *after = NULL;
-  LINK_T *link = link_create(before, after, item);
+LL_LINK_T *linklst_add(void *item, LINKLST_T *linklst) {
+  LL_LINK_T *before = linklst->last;
+  LL_LINK_T *after = NULL;
+  LL_LINK_T *link = link_create(before, after, item);
   if (before == NULL) linklst->first = link;
   linklst->last = link;
   linklst->size += 1;
@@ -171,7 +171,7 @@ LINK_T *linklst_add(void *item, LINKLST_T *linklst) {
  */
 LINKLST_T *linklst_copy(LINKLST_T *linklst) {
   LINKLST_T *new_list = linklst_create();
-  LINK_T *link = linklst->first;
+  LL_LINK_T *link = linklst->first;
   while (link) {
     linklst_add(link->item, new_list);
     link = link->after;
@@ -184,7 +184,7 @@ LINKLST_T *linklst_copy(LINKLST_T *linklst) {
  * first list. Returns the first list.
  */
 LINKLST_T *linklst_plus_equals(LINKLST_T *linklst, LINKLST_T *linklst2) {
-  LINK_T *link, *before, *after, *add_link;
+  LL_LINK_T *link, *before, *after, *add_link;
   add_link = linklst2->first;
   while (add_link) {
     before = linklst->last;
@@ -212,8 +212,8 @@ LINKLST_T *linklst_plus(LINKLST_T *linklst, LINKLST_T *linklst2) {
  */
 void *linklst_take(LINKLST_T *linklst) {
   if (linklst->size == 0) return NULL;
-  LINK_T *link = linklst->last;
-  LINK_T *new_last = link->before;
+  LL_LINK_T *link = linklst->last;
+  LL_LINK_T *new_last = link->before;
   if (new_last != NULL) new_last->after = NULL;
   linklst->last = new_last;
   linklst->size -= 1;
@@ -226,10 +226,10 @@ void *linklst_take(LINKLST_T *linklst) {
  * Pushes the item on the front of the linked list
  * and returns the new link.
  */
-LINK_T *linklst_push(void *item, LINKLST_T *linklst) {
-  LINK_T *after = linklst->first;
-  LINK_T *before = NULL;
-  LINK_T *link = link_create(before, after, item);
+LL_LINK_T *linklst_push(void *item, LINKLST_T *linklst) {
+  LL_LINK_T *after = linklst->first;
+  LL_LINK_T *before = NULL;
+  LL_LINK_T *link = link_create(before, after, item);
   linklst->first = link;
   if (after == NULL) linklst->last = link;
   linklst->size += 1;
@@ -242,8 +242,8 @@ LINK_T *linklst_push(void *item, LINKLST_T *linklst) {
  */
 void *linklst_pop(LINKLST_T *linklst) {
   if (linklst->size == 0) return NULL;
-  LINK_T *link = linklst->first;
-  LINK_T *new_first = link->after;
+  LL_LINK_T *link = linklst->first;
+  LL_LINK_T *new_first = link->after;
   if (new_first != NULL) new_first->before = NULL;
   else linklst->last = NULL;
   linklst->first = new_first;
@@ -267,9 +267,9 @@ void *linklst_peek(LINKLST_T *linklst) {
  * Note that the link must be a part of the
  * list or bad things will happen!
  */
-void *linklst_remove(LINK_T *link, LINKLST_T *linklst) {
-  LINK_T *before = link->before;
-  LINK_T *after = link->after;
+void *linklst_remove(LL_LINK_T *link, LINKLST_T *linklst) {
+  LL_LINK_T *before = link->before;
+  LL_LINK_T *after = link->after;
   if (before != NULL) before->after = after;
   if (after != NULL) after->before = before;
   if (link == linklst->first) linklst->first = after;
@@ -285,12 +285,12 @@ void *linklst_remove(LINK_T *link, LINKLST_T *linklst) {
  *
  */
 void linklst_sort(int (*comparator)(void*, void*), LINKLST_T *linklst) {
-  LINK_T *p, *q, *temp;
+  LL_LINK_T *p, *q, *temp;
   int k, i, psize, qsize;
   if (linklst->size <= 1) return;
   k = 1;
   p = linklst->first;
-  while (TRUE) {
+  while (true) {
     q = p;
     for (i = 0; q != NULL && i < k; ++i) q = q->after; 
     psize = i;
@@ -335,28 +335,28 @@ void linklst_sort(int (*comparator)(void*, void*), LINKLST_T *linklst) {
 /*
  * Gets the next link
  */
-LINK_T *linklst_next(LINK_T *link) {
+LL_LINK_T *linklst_next(LL_LINK_T *link) {
   return link->after;
 }
 
 /*
  * Gets the previous link
  */
-LINK_T *linklst_prev(LINK_T *link) {
+LL_LINK_T *linklst_prev(LL_LINK_T *link) {
   return link->before;
 }
 
 /*
  * Gets the item
  */
-void *linklst_get(LINK_T *link) {
+void *linklst_get(LL_LINK_T *link) {
   return link->item;
 }
 
 /*
  * Sets the item
  */
-void linklst_set(void *item, LINK_T *link) {
+void linklst_set(void *item, LL_LINK_T *link) {
   link->item = item;
 }
 

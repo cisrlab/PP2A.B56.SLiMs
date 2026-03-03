@@ -20,17 +20,6 @@
 /*debugging macros {{{*/
 extern VERBOSE_T verbosity;
 
-#define DEBUG_MSG(debug_level, debug_msg) { \
-  if (verbosity >= debug_level) { \
-    fprintf(stderr, debug_msg); \
-  } \
-}
-
-#define DEBUG_FMT(debug_level, debug_msg_format, ...) { \
-  if (verbosity >= debug_level) { \
-    fprintf(stderr, debug_msg_format, __VA_ARGS__); \
-  } \
-}
 /*}}}*/
 
 /*parser state {{{*/
@@ -200,13 +189,13 @@ void start_ele_sequence_filtering(CISML_PARSER_T *ps, const xmlChar **attrs) {
   char *program = NULL;
 
   char* filter_options[2] = {"off", "on"};
-  int filter_values[2] = {FALSE, TRUE};
+  int filter_values[2] = {false, true};
   MULTI_T filter_multi = {.count = 2, .options = filter_options, .outputs = filter_values, .target = &(is_filtered)};
 
   char* names[2] = {"on-off", "type"};
   int (*parsers[2])(char*, void*) = {ld_multi, ld_str};
   void *data[2] = {&filter_multi, &program};
-  BOOLEAN_T required[2] = {TRUE, FALSE};
+  bool required[2] = {true, false};
 
   parse_attributes(cisml_attr_parse_error, ps, "sequence-filtering", attrs, 2, names, parsers, data, required, NULL);
 
@@ -234,8 +223,8 @@ void start_ele_multi_pattern_scan(CISML_PARSER_T *ps, const xmlChar **attrs) {
   char* names[2] = {"pvalue", "score"};
   int (*parsers[2])(char*, void*) = {ld_pvalue, ld_double};
   void *data[2] = {&pvalue, &score};
-  BOOLEAN_T required[2] = {FALSE, FALSE};
-  BOOLEAN_T done[2] = {FALSE, FALSE};
+  bool required[2] = {false, false};
+  bool done[2] = {false, false};
 
   parse_attributes(cisml_attr_parse_error, ps, "multi-pattern-scan", attrs, 2, names, parsers, data, required, done);
 
@@ -256,8 +245,8 @@ void start_ele_pattern(CISML_PARSER_T *ps, const xmlChar **attrs) {
   char* names[6] = {"accession", "db", "lsId", "name", "pvalue", "score"};
   int (*parsers[6])(char*, void*) = {ld_str, ld_str, ld_str, ld_str, ld_pvalue, ld_double};
   void *data[6] = {&accession, &db, &lsId, &name, &pvalue, &score};
-  BOOLEAN_T required[6] = {TRUE, FALSE, FALSE, TRUE, FALSE, FALSE};
-  BOOLEAN_T done[6] = {FALSE, FALSE, FALSE, FALSE, FALSE, FALSE};
+  bool required[6] = {true, false, false, true, false, false};
+  bool done[6] = {false, false, false, false, false, false};
 
   parse_attributes(cisml_attr_parse_error, ps, "pattern", attrs, 6, names, parsers, data, required, done);
 
@@ -279,8 +268,8 @@ void start_ele_scanned_sequence(CISML_PARSER_T *ps, const xmlChar **attrs) {
   char* names[7] = {"accession", "db", "length", "lsId", "name", "pvalue", "score"};
   int (*parsers[7])(char*, void*) = {ld_str, ld_str, ld_long, ld_str, ld_str, ld_pvalue, ld_double};
   void *data[7] = {&accession, &db, &length, &lsId, &name, &pvalue, &score};
-  BOOLEAN_T required[7] = {TRUE, FALSE, FALSE, FALSE, TRUE, FALSE, FALSE};
-  BOOLEAN_T done[7] = {FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE};
+  bool required[7] = {true, false, false, false, true, false, false};
+  bool done[7] = {false, false, false, false, false, false, false};
 
   parse_attributes(cisml_attr_parse_error, ps, "scanned-sequence", attrs, 7, names, parsers, data, required, done);
 
@@ -300,8 +289,8 @@ void start_ele_matched_element(CISML_PARSER_T *ps, const xmlChar **attrs) {
   char *names[5] = {"clusterId", "pvalue", "score", "start", "stop"};
   int (*parsers[5])(char*, void*) = {ld_str, ld_pvalue, ld_double, ld_long, ld_long};
   void *data[5] = {&clusterId, &pvalue, &score, &start, &stop};
-  BOOLEAN_T required[5] = {FALSE, FALSE, FALSE, TRUE, TRUE};
-  BOOLEAN_T done[5] = {FALSE, FALSE, FALSE, FALSE, FALSE};
+  bool required[5] = {false, false, false, true, true};
+  bool done[5] = {false, false, false, false, false};
 
   parse_attributes(cisml_attr_parse_error, ps, "matched-element", attrs, 5, names, parsers, data, required, done);
 
@@ -587,7 +576,7 @@ int parse_cisml(CISML_CALLBACKS_T *callbacks, void *state, const char *file_name
   handler.error = handle_cisml_error;
 
   //parse
-  result = xmlSAXUserParseFile(&handler, &cisml_parser, file_name); // can not convert &amp; to & with this method
+  result = xmlSAXUserParseFile(&handler, &cisml_parser, file_name); // cannot convert &amp; to & with this method
 
   //clean up memory
   free(buf->buffer);

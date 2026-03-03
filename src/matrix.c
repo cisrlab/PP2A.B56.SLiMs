@@ -129,7 +129,7 @@ void remove_matrix_row
   // Copy all the other rows.
   num_rows = get_num_rows(matrix);
   for (i_row = row_index + 1; i_row < num_rows; i_row++) {
-    // FIXME: CEG Do we really need to copy the arrays?
+    // TODO: CEG Do we really need to copy the arrays?
     // Can't we just move the row pointers?
     copy_array(matrix->rows[i_row], matrix->rows[i_row-1]);
   }
@@ -404,7 +404,7 @@ void set_matrix_column
  * Turn an array into a matrix.
  ***********************************************************************/
 MATRIX_T* array_to_matrix
-  (BOOLEAN_T one_row, /* Put the array in one row, or in many. */
+  (bool one_row, /* Put the array in one row, or in many. */
    ARRAY_T*  array)
 {
   MATRIX_T* new_matrix;
@@ -444,7 +444,7 @@ void copy_matrix
     die("Attempted to copy matrices with different numbers of rows (%d != %d)\n",
       num_rows, get_num_rows(target_matrix));
   }
-  myassert(TRUE, get_num_cols(source_matrix) == get_num_cols(target_matrix),
+  myassert(true, get_num_cols(source_matrix) == get_num_cols(target_matrix),
      "Copying matrix with %d columns into matrix with %d columns.\n",
      get_num_cols(source_matrix), get_num_cols(target_matrix));
 
@@ -553,8 +553,8 @@ ARRAY_T* extract_diagonal
 /**************************************************************************
  * Determine whether a given matrix is symmetric.
  **************************************************************************/
-BOOLEAN_T is_symmetric
-  (BOOLEAN_T verbose,
+bool is_symmetric
+  (bool verbose,
    MTYPE     slop,
    MATRIX_T* matrix)
 {
@@ -580,11 +580,11 @@ BOOLEAN_T is_symmetric
     fprintf(stderr, "matrix[%d][%d]=%g matrix[%d][%d]=%g diff=%g\n",
       i_row, i_col, upper, i_col, i_row, lower, upper - lower);
   }
-  return(FALSE);
+  return(false);
       }
     }
   }
-  return(TRUE);
+  return(true);
 }
 
 /**************************************************************************
@@ -651,7 +651,7 @@ void add_to_diagonal
 /***********************************************************************
  * Determine whether two matrices are equal, within a given bound.
  ***********************************************************************/
-BOOLEAN_T equal_matrices
+bool equal_matrices
   (ATYPE    close_enough,
    MATRIX_T* matrix1,
    MATRIX_T* matrix2)
@@ -671,10 +671,10 @@ BOOLEAN_T equal_matrices
     if (!equal_arrays(close_enough, get_matrix_row(i_row, matrix1),
           get_matrix_row(i_row, matrix2))) {
       fprintf(stderr, "Matrices differ in row %d.\n", i_row);
-      return(FALSE);
+      return(false);
     }
   }
-  return(TRUE);
+  return(true);
 }
 
 /**************************************************************************
@@ -732,7 +732,7 @@ void mult_matrix
  * Convert a given matrix to or from logs.
  **************************************************************************/
 void convert_to_from_log_matrix
-  (BOOLEAN_T  to_log,
+  (bool  to_log,
    MATRIX_T*  source_matrix,
    MATRIX_T*  target_matrix)
 {
@@ -901,7 +901,7 @@ void print_matrix
   (MATRIX_T* matrix,        /* The matrix to be printed. */
    int       width,         /* Width of each cell. */
    int       precision,     /* Precision of each cell. */
-   BOOLEAN_T print_titles,  /* Include row and column indices? */
+   bool print_titles,  /* Include row and column indices? */
    FILE*     outfile)       /* File to which to write. */
 {
   int num_rows = get_num_rows(matrix);
@@ -930,7 +930,7 @@ void print_matrix
       fprintf(outfile, "%2d ", i_row);
     }
     column = get_matrix_column(i_row, matrix);
-    print_array(column, width, precision, TRUE, outfile);
+    print_array(column, width, precision, true, outfile);
     free_array(column);
   }
 }
@@ -1107,7 +1107,7 @@ void normalize_matrix
   int       num_cols;
   int       i_row;
   int       i_col;
-  BOOLEAN_T keep_going; /* Are we tolerably close to a normalized matrix? */
+  bool keep_going; /* Are we tolerably close to a normalized matrix? */
   MTYPE     total;
 
   /* Get the matrix dimensions. */
@@ -1123,7 +1123,7 @@ void normalize_matrix
   one_column = allocate_array(num_rows);
 
   /* Iterate until we're told to stop. */
-  keep_going = TRUE;
+  keep_going = true;
   for (iter = 0; keep_going; iter++) {
 
     /* First normalize the rows. */
@@ -1152,7 +1152,7 @@ void normalize_matrix
     }
 
     /* Now find out whether all rows are close enough to 1.0. */
-    keep_going = FALSE;
+    keep_going = false;
     for (i_row = 0; i_row < num_rows; i_row++) {
       total = array_total(get_matrix_row(i_row, matrix));
       if (!almost_equal(1.0, total, tolerance)) {
@@ -1162,7 +1162,7 @@ void normalize_matrix
     fprintf(stderr, "Iteration %d: row %d has difference of %g\n",
       iter, i_row, 1.0 - total);
   }
-  keep_going = TRUE;
+  keep_going = true;
   break;
       }
 
@@ -1264,7 +1264,7 @@ int reverse_array_compare
 }
 
 void sort_matrix_rows
-  (BOOLEAN_T reverse_sort,
+  (bool reverse_sort,
    ARRAY_T*  keys,
    MATRIX_T* matrix)
 {
@@ -1394,11 +1394,11 @@ void permute_matrix(MATRIX_T *matrix, bool cols, int *permutation, int count) {
 }
 
 /*****************************************************************************
- * Randomly shuffle the rows or columns of a matrix. If the boolean cols is TRUE
+ * Randomly shuffle the rows or columns of a matrix. If the boolean cols is true
  * shuffle the columns else shuffle the rows
  *****************************************************************************/
 void shuffle_matrix_cols
-  (MATRIX_T* matrix, BOOLEAN_T cols)
+  (MATRIX_T* matrix, bool cols)
 {
   int   i_row;
   int   i_col;

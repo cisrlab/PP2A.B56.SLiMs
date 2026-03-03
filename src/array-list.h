@@ -36,6 +36,11 @@ ARRAYLST_T *arraylst_create();
 void arraylst_destroy(void (*optional_item_destructor)(void*), ARRAYLST_T *arraylst);
 
 /*
+  Calls arraylst_destroy using "free" as the item desctructor.
+*/
+void arraylst_free(ARRAYLST_T *arraylst);
+
+/*
  * arraylst_preallocate
  * Ensures that space up to the passed size is avaliable so
  * that add operations won't cause unnecessary expansions. 
@@ -57,7 +62,7 @@ void arraylst_fit(ARRAYLST_T *arraylst);
  * arraylst_is_empty
  * Returns true if the array list is empty.
  */
-BOOLEAN_T arraylst_is_empty(ARRAYLST_T *arraylst);
+bool arraylst_is_empty(ARRAYLST_T *arraylst);
 
 /*
  * arraylst_size

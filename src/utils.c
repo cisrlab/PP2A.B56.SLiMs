@@ -9,6 +9,7 @@
 #include <regex.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <libgen.h> // for basename
 #include <stdarg.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -32,6 +33,7 @@
 #ifdef NOCLOCK
 double myclock() {return(0);}
 double mysysclock() {return(0);}
+double mytime() {return(0);}
 #else
 
 #ifdef crayc90
@@ -39,13 +41,14 @@ double mysysclock() {return(0);}
 #include <time.h>
 double myclock() {return((double)clock());}
 double mysysclock() {return((double)clock());}
+double mytime() {return((double)time(NULL));}
 
 #else
 int getrusage(int who, struct rusage *rusage);
 
 double mysysclock()
 {
-  static BOOLEAN_T first_time = TRUE;
+  static bool first_time = true;
   static double    start_time;
   double           elapsed;
   struct rusage    ru;
@@ -53,7 +56,7 @@ double mysysclock()
   if (first_time) {
     getrusage(RUSAGE_SELF, &ru);
     start_time = (ru.ru_stime.tv_sec * 1.0E6) + ru.ru_stime.tv_usec;
-    first_time = FALSE;
+    first_time = false;
     return 0;
 
   } else {
@@ -66,7 +69,7 @@ double mysysclock()
 
 double myclock()
 {
-  static BOOLEAN_T first_time = TRUE;
+  static bool first_time = true;
   static double    start_time;
   double           elapsed;
   struct rusage    ru;
@@ -74,7 +77,7 @@ double myclock()
   if (first_time) {
     getrusage(RUSAGE_SELF, &ru);
     start_time = (ru.ru_utime.tv_sec * 1.0E6) + ru.ru_utime.tv_usec;
-    first_time = FALSE;
+    first_time = false;
     return 0;
 
   } else {
@@ -84,6 +87,34 @@ double myclock()
     return elapsed;
   }
 }
+
+//
+// Return the elapsed Wall Time in microseconds since
+// the first call to mytime() or the previous call.
+//
+double mytime(
+  bool previous 	// return time since previous call
+)
+{
+  static bool first_time = true;
+  static struct timeval start, end, last;
+  double elapsed = 0;
+
+  if (first_time) {
+    first_time = false;
+    gettimeofday(&start, NULL);
+    end = start;
+  } else if (previous) { 
+    last = end;
+    gettimeofday(&end, NULL);
+    elapsed = (end.tv_sec - last.tv_sec) * 1.0E6 + (end.tv_usec - last.tv_usec);
+  } else {
+    gettimeofday(&end, NULL);
+    elapsed = (end.tv_sec - start.tv_sec) * 1.0E6 + (end.tv_usec - start.tv_usec);
+  }
+  return(elapsed);
+}
+
 #endif /* crayc90 */
 #endif /* NOCLOCK */
 
@@ -101,7 +132,7 @@ char* make_path_to_file(const char *directory, const char* filename) {
     size_t directory_length = strlen(directory);
     size_t filename_length = strlen(filename);
     size_t max_path_length = directory_length + filename_length  + 2;
-    char *path = mymalloc(max_path_length);
+    char *path = mm_malloc(max_path_length);
     strncpy(path, directory, max_path_length);
     // Check if the terminating '/' is present in the directory
     // if not add it to the path.
@@ -111,7 +142,6 @@ char* make_path_to_file(const char *directory, const char* filename) {
     strncat(path, filename, max_path_length - directory_length - 1);
     return path;
 }
-
 
 /************************************************************************
  * char* concat
@@ -124,7 +154,7 @@ char* concat_string(const char *string1, const char* string2) {
     size_t string1_len = strlen(string1);
     size_t string2_len = strlen(string2);
     size_t max_length = string1_len + string2_len  + 1;
-    char *c = mymalloc(max_length);
+    char *c = mm_malloc(max_length);
     strncpy(c, string1, max_length);
     strncat(c, string2, max_length - string1_len);
     return c;
@@ -133,17 +163,17 @@ char* concat_string(const char *string1, const char* string2) {
 /************************************************************************
  * See .h file for description.
  ************************************************************************/
-BOOLEAN_T open_file
+bool open_file
   (const char *    filename,            /* Name of the file to be opened. */
    const char *    file_mode,           /* Mode to be passed to fopen. */
-   BOOLEAN_T allow_stdin,         /* If true, filename "-" is stdin. */
+   bool allow_stdin,         /* If true, filename "-" is stdin. */
    const char *    file_description,
    const char *    content_description,
    FILE **         afile)               /* Pointer to the open file. */
 {
   if (filename == NULL) {
     fprintf(stderr, "Error: No %s filename specified.\n", file_description);
-    return(FALSE);
+    return(false);
   } else if ((allow_stdin) && (strcmp(filename, "-") == 0)) {
     if (strchr(file_mode, 'r') != NULL) {
       fprintf(stderr, "Reading %s from stdin.\n", content_description);
@@ -154,13 +184,13 @@ BOOLEAN_T open_file
     } else {
       fprintf(stderr, "Sorry, I can't figure out whether to use stdin ");
       fprintf(stderr, "or stdout for %s.\n", content_description);
-      return(FALSE);
+      return(false);
     }
   } else if ((*afile = fopen(filename, file_mode)) == NULL) {
     fprintf(stderr, "Error opening file %s.\n", filename);
-    return(FALSE);
+    return(false);
   }
-  return(TRUE);
+  return(true);
 }
 
 /*************************************************************************
@@ -222,12 +252,11 @@ static FILE* run_program
   return(return_value);
 }
 
-
 /*************************************************************************
  * Attempt to run a given program in a given directory with the given
  * arguments, and check that it gives the expected one-line reply.
  *************************************************************************/
-static BOOLEAN_T try_to_run
+static bool try_to_run
   (char*      program,          // The program to run in the pipe.
    char*      directory,        // Directory to look in.
    char*      test_arguments,   // Arguments used when searching for program.
@@ -235,7 +264,7 @@ static BOOLEAN_T try_to_run
 {
   char* reply;
   FILE* pipe;
-  BOOLEAN_T return_value;
+  bool return_value;
 
 
   // Allocate space for the reply.
@@ -246,19 +275,19 @@ static BOOLEAN_T try_to_run
 
   // Check the pipe.
   if (pipe == NULL) {
-    return_value = FALSE;
+    return_value = false;
   } else {
 
     // Read from the pipe.
     if (fgets(reply, strlen(expected_reply) + 1, pipe) == NULL) {
-      return_value = FALSE;
+      return_value = false;
     } else {
       return_value = (strcmp(reply, expected_reply) == 0);
     }
 
     // Close the pipe.
     if (pclose(pipe) == -1) {
-      return_value = FALSE;
+      return_value = false;
     }
   }
 
@@ -266,7 +295,6 @@ static BOOLEAN_T try_to_run
   myfree(reply);
   return(return_value);
 }
-
 
 /*************************************************************************
  * Open a read-only pipe using a given command line.
@@ -277,7 +305,7 @@ FILE* open_command_pipe
    char*     test_arguments,   // Arguments used when searching for program.
    char*     expected_reply,   // Expected reply from search.
    char*     real_arguments,   // Arguments used when running the program.
-   BOOLEAN_T stdout_on_error,  // If command fails, return STDOUT?
+   bool stdout_on_error,  // If command fails, return STDOUT?
    char*     error_message)    // Error or warning if command fails.
 {
   FILE* return_value;
@@ -298,13 +326,12 @@ FILE* open_command_pipe
     if (stdout_on_error) {
       return_value = stdout;
     } else {
-      Rf_error("exit:%d", 1);
+      exit(1);
     }
   }
 
   return(return_value);
 }
-
 
 /********************************************************************
  * See .h file for description.
@@ -323,19 +350,23 @@ void die
   fflush(stderr);
 
 #ifdef DEBUG
+/*
+  Cause a crash
+*/
+  char *crash = NULL;
+  *crash = 'x';
   Rf_error("abort");
 #else
   Rf_error("exit:%d", 1);
 #endif
 }
 
-
 /**************************************************************************
  * See .h file for description.
  **************************************************************************/
 void myassert
-  (BOOLEAN_T die_on_error,
-   BOOLEAN_T test,
+  (bool die_on_error,
+   bool test,
    char * const    format,
    ...)
 {
@@ -380,6 +411,7 @@ void *mm_malloc
     size++;
 
   temp_ptr = malloc(size);
+  //memset(temp_ptr, '\0', size);		// Set this to see RAM requirements.
 
   if (temp_ptr == NULL)
     die("Memory exhausted.  Cannot allocate %d bytes.", (int)size);
@@ -497,35 +529,34 @@ double get_next_larger_double(double x) {
   return x;
 }
 
-
 /**************************************************************************
  * See .h file for description.
  **************************************************************************/
-BOOLEAN_T is_zero
+bool is_zero
   (double    value,
-   BOOLEAN_T log_form)
+   bool log_form)
 {
   if ((log_form) && (value < LOG_SMALL)) {
-    return(TRUE);
+    return(true);
   } else if ((!log_form) && (value == 0.0)) {
-    return(TRUE);
+    return(true);
   } else {
-    return(FALSE);
+    return(false);
   }
 }
 
 /**************************************************************************
  * See .h file for description.
  **************************************************************************/
-BOOLEAN_T almost_equal
+bool almost_equal
   (double value1,
    double value2,
    double slop)
 {
   if ((value1 - slop > value2) || (value1 + slop < value2)) {
-    return(FALSE);
+    return(false);
   } else {
-    return(TRUE);
+    return(true);
   }
 }
 
@@ -533,21 +564,39 @@ BOOLEAN_T almost_equal
  * Convert a boolean to and from a "true" or "false" string.
  *************************************************************************/
 const char* boolean_to_string
- (BOOLEAN_T the_boolean) {
-  return the_boolean == TRUE ? "true" : "false";
+ (bool the_boolean) {
+  return the_boolean == true ? "true" : "false";
 }
 
-BOOLEAN_T boolean_from_string
+bool boolean_from_string
   (char* true_or_false)
 {
   if (strcmp(true_or_false, "true") == 0) {
-    return(TRUE);
+    return(true);
   } else if (strcmp(true_or_false, "false") == 0) {
-    return(FALSE);
+    return(false);
   } else {
     die("Invalid input to boolean_from_string (%s)\n", true_or_false);
   }
-  return(FALSE); /* Unreachable. */
+  return(false); /* Unreachable. */
+}
+
+// 
+// Convert null-terminated unsigned character string to character string.
+// Remember to free the returned char string.
+//
+char *uchar_to_char(unsigned char *ustr) {
+  char *str = NULL;
+  int i;
+  unsigned char c;
+  int len = strlen((char *) ustr);
+  str = mm_malloc(sizeof(char) * len+1);
+  for (i=0; i<len; i++) {
+    c = ustr[i];
+    str[i] = (char) ( (c >= 0) ? c : c+256 );
+  }
+  str[i] = '\0';
+  return(str);
 }
 
 /*************************************************************************
@@ -581,7 +630,7 @@ char* unicode_to_string(uint32_t code, char *buffer, int *code_unit_length) {
     code = code >> 6;
   }
   buffer[0] = ((0xFF << (8 - bytes)) & 0xFF) | code;
-  if (code_unit_length != NULL) *code_unit_length = code;
+  if (code_unit_length != NULL) *code_unit_length = bytes;
   return buffer;
 }
 
@@ -600,31 +649,31 @@ int32_t unicode_from_string(const char *str, size_t len, int *code_unit_length) 
   int bytes, bytes_after, i;
   int32_t codepoint, min;
   if (code_unit_length != NULL) *code_unit_length = 1;
-  if ((str[0] & 0x80) == 0x00) {
+  if ((str[0] & 0x80) == 0x00) {	// 0xxx xxxx  == ASCII == 7 bits
     codepoint = str[0];
     return codepoint;
-  } else if ((str[0] & 0xC0) == 0x80) {
+  } else if ((str[0] & 0xC0) == 0x80) {	// 10xx xxxx = middle byte (not allowed here!)
     return -1;
-  } else if ((str[0] & 0xE0) == 0xC0) {
+  } else if ((str[0] & 0xE0) == 0xC0) { // 110x xxxx == 2 byte == 11 bits
     bytes = 2;
     codepoint = (str[0] & 0x1F) << 6;
-  } else if ((str[0] & 0xF0) == 0xE0) {
+  } else if ((str[0] & 0xF0) == 0xE0) {	// 1110 xxxx == 3 bytes == 16 bits
     bytes = 3;
     codepoint = (str[0] & 0x0F) << 12;
-  } else if ((str[0] & 0xF8) == 0xF0) {
+  } else if ((str[0] & 0xF8) == 0xF0) { // 1111 0xxx == 4 bytes == 21 bits
     bytes = 4;
     codepoint = (str[0] & 0x07) << 18;
-  } else if ((str[0] & 0xFC) == 0xF8) {
+  } else if ((str[0] & 0xFC) == 0xF8) {	// 1111 10xx == 5 bytes == 26 bits
     bytes = 5;
     codepoint = (str[0] & 0x03) << 24;
-  } else if ((str[0] & 0xFE) == 0xFC) {
+  } else if ((str[0] & 0xFE) == 0xFC) {	// 1111 110x == 6 bytes == 31 bits
     bytes = 6;
     codepoint = (str[0] & 0x01) << 30;
   } else if ((str[0] & 0xFF) == 0xFE || (str[0] & 0xFF) == 0xFF) {
     return -3;
   } else {
     die("Impossible state!");
-    return -6;
+    return -6; 
   }
   if (code_unit_length != NULL) *code_unit_length = bytes;
   if (bytes > len) return -2;
@@ -768,7 +817,7 @@ char* log10_evalue_to_string2(double log10_ev, int prec,
 /**************************************************************************
  * Does a given character appear in a given string?
  **************************************************************************/
-BOOLEAN_T char_in_string
+bool char_in_string
   (const char* a_string,
    char        a_char)
 {
@@ -779,12 +828,12 @@ BOOLEAN_T char_in_string
   string_char = a_string[i_string];
   while (string_char != '\0') {
     if (string_char == a_char) {
-      return(TRUE);
+      return(true);
     }
     i_string++;
     string_char = a_string[i_string];
   }
-  return(FALSE);
+  return(false);
 }
 
 /**************************************************************************
@@ -840,7 +889,7 @@ const char* hostname
 {
   FILE *           hostname_stream;
   static char      the_hostname[HOST_LENGTH];
-  static BOOLEAN_T first_time = TRUE;
+  static bool	   first_time = true;
   int              num_scanned;
 
   if (first_time) {
@@ -861,7 +910,7 @@ const char* date_and_time
 {
   FILE *           date_stream;
   static char      the_date[HOST_LENGTH];
-  static BOOLEAN_T first_time = TRUE;
+  static bool first_time = true;
 
   if (first_time) {
     char *date_str;
@@ -874,7 +923,7 @@ const char* date_and_time
     assert(date_str[strlen(date_str)-1] == '\n');
     date_str[strlen(date_str)-1] = '\0';
     /* Use cached value next time */
-    first_time = FALSE;
+    first_time = false;
   }
 
   return(the_date);
@@ -920,10 +969,10 @@ void copy_string
  * Test whether a string is empty or contains only white space
  * Assumes a null terminated string.
  ************************************************************************/
-BOOLEAN_T is_empty_string
+bool is_empty_string
   (char *s)
 {
-  BOOLEAN_T result = TRUE;
+  bool result = true;
 
   assert(s != NULL);
 
@@ -932,7 +981,7 @@ BOOLEAN_T is_empty_string
       s++;
     } else {
       // Found a non-white space character
-      result = FALSE;
+      result = false;
       break;
     }
   };
@@ -969,18 +1018,17 @@ void get_non_blank
   } while ((*a_char == ' ') || (*a_char == '\n') || (*a_char == '\t'));
 }
 
-
 /************************************************************************
  *  Is the next character in the file the eoln character
  ************************************************************************/
-BOOLEAN_T is_eoln
+bool is_eoln
   (FILE * infile)
 {
   register long ch;
 
   ch = getc(infile);
   if (ch == EOF) {
-    return(TRUE);
+    return(true);
   }
   ungetc(ch, infile);
   return(ch == '\n');
@@ -989,16 +1037,16 @@ BOOLEAN_T is_eoln
 /************************************************************************
  *  Does a file exist?
  ************************************************************************/
-BOOLEAN_T file_exists(char* file_path) {
+bool file_exists(char* file_path) {
 
   struct stat stat_buffer;
-  BOOLEAN_T result = FALSE;
+  bool result = false;
 
   // Does the file exist?
   if (stat(file_path, &stat_buffer)) {
     if (errno == ENOENT) {
       // stat failed because the path doesn't exist.
-      result = FALSE;
+      result = false;
     }
     else {
       // stat failed for some other reason
@@ -1011,7 +1059,7 @@ BOOLEAN_T file_exists(char* file_path) {
     }
   }
   else {
-    result = TRUE;
+    result = true;
   }
 
   return result;
@@ -1020,20 +1068,20 @@ BOOLEAN_T file_exists(char* file_path) {
 /************************************************************************
  *  Is a file executable?
  ************************************************************************/
-BOOLEAN_T file_executable(char* file_path) {
+bool file_executable(char* file_path) {
 
   struct stat file_status;
 
   // Is there a path at all?
   if (file_path == NULL) {
-    return FALSE;
+    return false;
   }
-
+  
   // Does the file exist?
   if (stat(file_path, &file_status)) {
     if (errno == ENOENT) {
       // stat failed because the path doesn't exist.
-      return FALSE;
+      return false;
     } else {
       // stat failed for some other reason
       die(
@@ -1044,38 +1092,68 @@ BOOLEAN_T file_executable(char* file_path) {
       );
     }
   }
-  //stat worked, now check if it's a regular executable
-  if (!(S_ISREG(file_status.st_mode) && access(file_path, X_OK) == 0)) return FALSE;
-  return TRUE;
-}
+  // stat worked, now check if it's a regular executable
+  if (!(S_ISREG(file_status.st_mode) && access(file_path, X_OK) == 0)) return false;
+  return true;
+} // file_executable
 
+/************************************************************************
+ *  Is a file a directory?
+ ************************************************************************/
+bool file_directory(char* file_path) {
+
+  struct stat file_status;
+
+  // Is there a path at all?
+  if (file_path == NULL) {
+    return false;
+  }
+  
+  // Does the file exist?
+  if (stat(file_path, &file_status)) {
+    if (errno == ENOENT) {
+      // stat failed because the path doesn't exist.
+      return false;
+    } else {
+      // stat failed for some other reason
+      die(
+        "Unable to check for status of file '%s'.\n"
+        "Error: %s.\n",
+        file_path,
+        strerror(errno)
+      );
+    }
+  }
+  // stat worked, now check if it's a directory
+  return (S_ISDIR(file_status.st_mode));
+} // file_directory
 
 /******************************************************************
  * This function copies the contents of the file named by the first
  * argument into the file named by the second argument.
  *
- * Returns TRUE if successful, FALSE otherwise.
+ * Returns true if successful, false otherwise.
 ******************************************************************/
-BOOLEAN_T copy_file(char *from_filename, char *to_filename) {
+bool copy_file(char *from_filename, char *to_filename) {
 
   FILE *from = NULL;
   FILE *to = NULL;
   int c = 0;
-  int result = FALSE;
+  int result = false;
 
   // Open the files
   from = fopen(from_filename, "r");
   if (!from) {
     // Couldn't open the input file.
     fprintf(stderr, "Couldn't open %s for input.\n", from_filename);
-    return FALSE;
+    return false;
   }
   to = fopen(to_filename, "w");
   if (!to) {
     // Couldn't open the output file.
     fprintf(stderr, "Couldn't open %s for output.\n", to_filename);
     fclose(from);
-    return FALSE;
+    return false;
   }
 
   // Copy the bytes
@@ -1089,7 +1167,7 @@ BOOLEAN_T copy_file(char *from_filename, char *to_filename) {
   // Should be at EOF for input with no errors on output.
   if (feof(from) && !ferror(to)) {
     // Success
-    result = TRUE;
+    result = true;
   }
   else {
     //  Failure
@@ -1099,7 +1177,7 @@ BOOLEAN_T copy_file(char *from_filename, char *to_filename) {
     if (ferror(to)) {
       fprintf(stderr, "Error writing to %s.\n", to_filename);
     }
-    result = FALSE;
+    result = false;
   }
 
   fclose(from);
@@ -1113,10 +1191,10 @@ BOOLEAN_T copy_file(char *from_filename, char *to_filename) {
  * to where the MEME etc files are installed. If the environment
  * variable is not found, it returns the definitions from the configuration.
 ******************************************************************/
-const char* get_meme_etc_dir() {
-  const char *etc_dir;
-  etc_dir = getenv("MEME_ETC_DIR");
-  return etc_dir != NULL ? etc_dir : ETC_DIR;
+const char* get_meme_data_dir() {
+  const char *data_dir;
+  data_dir = getenv("MEME_DATA_DIR");
+  return data_dir != NULL ? data_dir : DATA_DIR;
 }
 
 /******************************************************************
@@ -1145,7 +1223,7 @@ const char* get_meme_temp_dir() {
   if (temp_dir != NULL) return temp_dir;
   // second check if a temporary directory was configured
   if (TEMP_DIR[0] != '\0') return TEMP_DIR;
-  // finally search other environment variable options,
+  // finally search other environment variable options, 
   // apparently this is the order checked by the C++ boost::filesystem library
   if ((temp_dir = getenv("TMPDIR")) != NULL) return temp_dir;
   if ((temp_dir = getenv("TMP")) != NULL) return temp_dir;
@@ -1212,6 +1290,43 @@ char* get_meme_bin_file(const char* file_name) {
 }
 
 /******************************************************************
+ * This function checks the environment variables MEME_BIN_DIRS and
+ * MEME_LIBEXEC_DIR for a file with the given name. If neither of those
+ * is set then it will look for the file in the compiled LIBEXEC_DIR.
+ * If the file is found then an allocated path is returned to it,
+ * alternatively NULL is returned if no such file exists.
+ * The caller is responsible for freeing memory.
+******************************************************************/
+char* get_meme_libexec_file(const char* file_name) {
+  int i;
+  struct stat stat_buffer;
+  const char *dirs;
+  char *path;
+  char *dlist[2] = {"MEME_BIN_DIRS", "MEME_LIBEXEC_DIR"};
+
+  for (i=0; i<2; i++) {
+    dirs = getenv(dlist[i]);
+    if (dirs != NULL) {
+      path = get_meme_dirs_file(dirs, file_name);
+      if (stat(path, &stat_buffer) == 0) {
+        return path;
+      } else {
+        free(path);
+      }
+    }
+  }
+
+  path = make_path_to_file(LIBEXEC_DIR, file_name);
+  if (stat(path, &stat_buffer) == 0) {
+    return path;
+  } else {
+    free(path);
+  }
+
+  return NULL;
+}
+
+/******************************************************************
  *
  * This function creates a string from the command-line arguments.
  * Caller is responsible for freeing the string returned.
@@ -1226,8 +1341,12 @@ char *get_command_line(int argc, char* argv[]) {
   int i = 0;
   // Work through each of the arguments
   for (i = 0; i < argc; i++) {
-    int arg_length = strlen(argv[i]) + 2; // +1 for leading space,
-                                          // +1 for trailing null
+    char *nextword = (i == 0) ? basename(argv[0]) : argv[i];
+    int arg_length = strlen(nextword) + 2; // +1 for leading space,
+                                           // +1 for trailing null
+    // Put argument in quotes if it contains white space.
+    bool has_whitespace = strchr(nextword, ' ') || strchr(nextword, '\t');
+    if (has_whitespace) arg_length += 2;
     total_arg_length += arg_length;
     // Do we have space left in the buffer?
     if (total_arg_length > buffer_size) {
@@ -1239,8 +1358,10 @@ char *get_command_line(int argc, char* argv[]) {
       // Add leading space if not in the first arugment.
       strcat(command_line, " ");
     }
-    strcat(command_line, argv[i]);
-  }
+    if (has_whitespace) strcat(command_line, "'");
+    strcat(command_line, nextword);
+    if (has_whitespace) strcat(command_line, "'");
+  } // i
 
   return command_line;
 }
@@ -1253,7 +1374,7 @@ char *get_command_line(int argc, char* argv[]) {
  * If there is a string, then copy it.
  * If neither a file or string is avaliable then return null.
  * Convert windows new lines (CRLF) into into line feed. Convert old mac
- * new lines (CR) into line feed, note that LFCR is not supported.
+ * new lines (CR) into line feed, note that LFCR is not supported. 
  * Merge 3 or more contiguous line feeds into two line feeds.
  * Remove leading and trailing space.
  *
@@ -1387,6 +1508,56 @@ void shuffle(void *base, size_t n, size_t size) {
     memswap((char *)base + (n-1) * size, (char *)base + r * size, size);
   }
 }
+
+/*****************************************************************************
+ * Outputs the file name when given a path to that file.
+ *
+ * Searches the path string for '/' chars.  Removes the extension
+ * if requested.  Replaces underscores with spaces if requested.
+ *
+ * This is not intended to be perfect as I'm sure there's some valid way to have
+ * a '/' in a file name but I expect it will work most of the time.
+ *****************************************************************************/
+char *file_name_from_path(
+  char *path, 
+  bool remove_ext, 
+  bool remove_meme_ext, 
+  bool replace_underscores
+) {
+
+  // scan forwards and find the last '/'
+  char *start = path;
+  char *where = path;
+  for (; *where != '\0'; where++) {
+    if (*where == '/') start = where+1;
+  }
+  char *end = where;		// at null at end of string
+
+  // Remove extension if requested.
+  // Work backwards and find the last '.' after the last '/'
+  if (remove_ext || remove_meme_ext) {
+    for (; where > start; where--) {
+      if (*where == '.') {
+        if (!remove_meme_ext || strcmp(where, ".meme")==0) {
+	  end = where;
+        }
+	break;
+      }
+    }
+  }
+  int len = end - start;
+
+  // Create name.
+  char *name = mm_malloc(sizeof(char) * (len + 1));
+  char *c;
+  int i;
+  for (i = 0, c = start; c < end; c++, i++) {
+    name[i] = (replace_underscores && *c == '_') ? ' ' : *c;
+  }
+  name[len] = '\0';
+
+  return name;
+} // file_name_from_path
 
 /*
  * Local Variables:

@@ -24,13 +24,13 @@
  * and description. The name is everything after the '>' to the
  * first white space. The description is everything after all white
  * space following the name to the end of the line.
- * After calling *name will point to a buffer containing the name,
- * and *description will point to a buffer containing the description.
+ * After calling *name will point to a buffer containing the name, 
+ * and *description will point to a buffer containing the description. 
  * The caller is * responsible for freeing the memory in these buffers.
  *
- * The return value is TRUE if a title line was read and FALSE otherwise.
+ * The return value is true if a title line was read and false otherwise.
  ****************************************************************************/
-static BOOLEAN_T read_title_line
+static bool read_title_line
   (FILE* fasta_file,
    char** name,
    char** description)
@@ -39,12 +39,13 @@ static BOOLEAN_T read_title_line
 
   // Read until the first occurrence of ">".
   do {
+    if (id_line)free(id_line);
     id_line = getline2(fasta_file);
   } while (id_line != NULL && id_line[0] != '>');
 
   if (id_line == NULL) {
     // We never found a title line
-    return FALSE;
+    return false;
   }
 
   // id_line will contain trailing '\n'
@@ -97,7 +98,7 @@ static BOOLEAN_T read_title_line
   }
 
   myfree(id_line);
-  return(TRUE);
+  return(true);
 }
 
 /****************************************************************************
@@ -107,7 +108,7 @@ static BOOLEAN_T read_title_line
  *
  * Return: Was the sequence read completely?
  ****************************************************************************/
-static BOOLEAN_T read_raw_sequence
+static bool read_raw_sequence
   (ALPH_T* alph,
    FILE* fasta_file,   // Input Fasta file.
    char* name,         // Sequence ID (used in error messages).
@@ -117,11 +118,11 @@ static BOOLEAN_T read_raw_sequence
   // tlb; change a_char to integer so it will compile on SGI
   int a_char;
   int i_seq;
-  BOOLEAN_T return_value = TRUE;
+  bool return_value = true;
 
   // Start at the end of the given sequence.
   i_seq = strlen(raw_sequence);
-  assert((int)strlen(raw_sequence) < max_chars);
+  assert((int)strlen(raw_sequence) <= max_chars);
 
   // Read character by character.
   while ((a_char = getc(fasta_file)) != EOF) {
@@ -151,7 +152,7 @@ static BOOLEAN_T read_raw_sequence
       i_seq++;
     }
     if (i_seq >= max_chars) {
-      return_value = FALSE;
+      return_value = false;
       break;
     }
   }
@@ -165,7 +166,7 @@ static BOOLEAN_T read_raw_sequence
  *
  * Return: Was a sequence successfully read?
  ****************************************************************************/
-BOOLEAN_T read_one_fasta
+bool read_one_fasta
   (ALPH_T*   alph,
    FILE*     fasta_file,
    int       max_seq_length,
@@ -177,20 +178,25 @@ BOOLEAN_T read_one_fasta
 
   // Read the title line.
   if (!read_title_line(fasta_file, &name, &desc)) {
-    return(FALSE);
+    return(false);
   }
-
+  
   // Create local static storage space.
   if (buffer == NULL) {
-    buffer = mm_malloc(sizeof(char) * max_seq_length);
+    buffer = mm_malloc(sizeof(char) * (max_seq_length+1));
   }
 
   // Read the sequence.
   buffer[0] = '\0';
   if (!read_raw_sequence(alph, fasta_file, name, max_seq_length, buffer)) {
-    die("Sequence %s is too long (maximum=%d).\n", name, max_seq_length);
+    //die("Sequence %s is too long (maximum=%d).\n", name, max_seq_length);
+    fprintf(stderr, "Skipping sequence %s because it is too long (maximum=%d).\n", name, max_seq_length);
+    myfree(buffer);
+    myfree(name);
+    myfree(desc);
+    return(false);
   }
-
+    
   // Allocate the new sequence object.
   *sequence = allocate_seq(name, desc, 0, buffer);
   myfree(name);
@@ -199,11 +205,11 @@ BOOLEAN_T read_one_fasta
 
   // Tell the user what's up.
   if (verbosity >= DUMP_VERBOSE) {
-    fprintf(stderr,
-	    "Read sequence %s of length %d.\n",
-	    get_seq_name(*sequence), get_seq_length(*sequence));
+    fprintf(stderr, 
+	"Read sequence %s of length %d.\n",
+	get_seq_name(*sequence), get_seq_length(*sequence));
   }
-  return(TRUE);
+  return(true);
 }
 
 /****************************************************************************
@@ -213,7 +219,7 @@ BOOLEAN_T read_one_fasta
  *
  * Return: Was a sequence segment successfully read?
  ****************************************************************************/
-BOOLEAN_T read_one_fasta_segment
+bool read_one_fasta_segment
   (ALPH_T*   alph,
    FILE*     fasta_file,
    int       max_chars,
@@ -221,13 +227,13 @@ BOOLEAN_T read_one_fasta_segment
 {
   char *name;     // Just the sequence ID.
   char *desc;     // Just the comment field.
-  int         offset = 0;             // Offset of this sequence.
-  char*       new_sequence = (char*)mm_calloc(max_chars + 1, sizeof(char));
-  BOOLEAN_T   is_complete;  // Is this a complete sequence?
+  int offset = 0; // Offset of this sequence.
+  char *new_sequence = (char*)mm_calloc(max_chars + 1, sizeof(char));
+  bool is_complete;  // Is this a complete sequence?
 
   // Extract information from the current sequence.
   if (*sequence != NULL) {
-    // FIXME CEG This is inefficient. We should really add a
+    // TODO CEG This is inefficient. We should really add a 
     // method to allow setting the sequence in SEQ_T objects
     char *old_name = get_seq_name(*sequence);
     int len = strlen(old_name) + 1;
@@ -237,18 +243,18 @@ BOOLEAN_T read_one_fasta_segment
     len = strlen(old_desc) + 1;
     desc = mm_malloc(sizeof(char) * len);
     strcpy(desc, old_desc);
-    assert(get_seq_length(*sequence) < max_chars);
+    assert(get_seq_length(*sequence) <= max_chars);
     strcpy(new_sequence, get_raw_sequence(*sequence));
     offset = get_seq_offset(*sequence);
     free_seq(*sequence);
     *sequence = NULL;
   }
-
+  
   // Read information from the file.
   else {
     if (!read_title_line(fasta_file, &name, &desc)) {
       myfree(new_sequence);
-      return(FALSE);
+      return(false);
     }
   }
 
@@ -263,7 +269,7 @@ BOOLEAN_T read_one_fasta_segment
   myfree(desc);
   myfree(new_sequence);
 
-  return(TRUE);
+  return(true);
 }
 
 /****************************************************************************
@@ -325,7 +331,7 @@ void new_read_many_fastas
 {
   int i_seq;         /* Index of the current sequence. */
   int num_allocated; /* Number of pointers currently allocated. */
-  char *desc = "";	// doesn't read FASTA descriptions (FIXME)
+  char *desc = "";	// doesn't read FASTA descriptions (TODO)
 
   /* Allocate initial memory. */
   num_allocated = NUM_ALLOC;
@@ -333,39 +339,40 @@ void new_read_many_fastas
 
   // Allocate the DATA_BLOCK_READER
   DATA_BLOCK_READER_T *fasta_reader
-    = new_seq_reader_from_fasta(TRUE /*parse genomic coord.*/, alph, fasta_filename);
+    = new_seq_reader_from_fasta(true /*parse genomic coord.*/, alph, fasta_filename);
 
   /* Read the sequences one by one. */
   i_seq = 0;
   while (
-    fasta_reader->go_to_next_sequence(fasta_reader) != FALSE
+    fasta_reader->go_to_next_sequence(fasta_reader) != false
   ) {
     char *fasta_seq_name = NULL;
-    BOOLEAN_T fasta_result
+    bool fasta_result
       = fasta_reader->get_seq_name(fasta_reader, &fasta_seq_name);
     DATA_BLOCK_T *seq_block = new_sequence_block(max_seq);
-    BOOLEAN_T more_to_read =
+    bool more_to_read = 
       fasta_reader->get_next_block(fasta_reader, seq_block);
     int start = get_start_pos_for_data_block(seq_block);
     if (more_to_read) {
       if (start != 1) {
-        die("Sequence %s:%d-? is too long (maximum=%d).\n",
+        die("Sequence %s:%d-? is too long (maximum=%d).\n", 
           fasta_seq_name, start, max_seq);
       } else {
-        die("Sequence %s is too long (maximum=%d).\n",
+        die("Sequence %s is too long (maximum=%d).\n", 
           fasta_seq_name, max_seq);
       }
     }
     char *raw_seq = get_sequence_from_data_block(seq_block);
     // save the start of the sequence (from the chr:start-stop) in ->offset
     (*sequences)[i_seq] = allocate_seq(fasta_seq_name, desc, start, raw_seq);
+    free(fasta_seq_name);
     free_data_block(seq_block);
 
     /* Allocate more space, if need be. */
     i_seq++;
     if (i_seq >= num_allocated) {
       num_allocated += NUM_ALLOC;
-      *sequences = (SEQ_T**)mm_realloc(*sequences,
+      *sequences = (SEQ_T**)mm_realloc(*sequences, 
 				      sizeof(SEQ_T*) * num_allocated);
     }
   }
@@ -387,7 +394,7 @@ void new_read_many_fastas
 #define FASTA_LINE 50
 void print_fasta
   (SEQ_T*    sequence,
-   FILE*     outfile)
+   FILE*     outfile)  
 {
   int   i_seq;
   int   seq_length;
@@ -410,25 +417,25 @@ void print_fasta
  *  Create a sequence object from the first sequence in a FASTA file.
  ****************************************************************************/
 SEQ_T* read_sequence_from_file(ALPH_T* alph, char* filename) {
-
-  BOOLEAN_T result = FALSE;
+  
+  bool result = false;
   FILE* seq_file = NULL;
   SEQ_T* seq = NULL;
 
   result = open_file(
-    filename,
-    "r",
-    1,
-    "sequence",
-    "sequence",
+    filename, 
+    "r", 
+    1, 
+    "sequence", 
+    "sequence", 
     &seq_file
   );
-  if (result != TRUE) {
+  if (result != true) {
     die("Couldn't open the file %s.\n", filename);
   }
-  if (read_one_fasta(alph, seq_file, MAX_SEQ, &seq) == FALSE) {
+  if (read_one_fasta(alph, seq_file, MAX_SEQ, &seq) == false) {
     die("Error while reading %s as a FASTA file.\n", filename);
-  }
+  } 
   if (seq_file != NULL) {
     fclose(seq_file);
   }
@@ -440,8 +447,12 @@ SEQ_T* read_sequence_from_file(ALPH_T* alph, char* filename) {
  *  Create a zero order background from the sequences in a FASTA file.
  *  Note that the alphabet must be set in alphabet.h.
  ****************************************************************************/
-ARRAY_T* calc_bg_from_file(ALPH_T* alph, char* filename, BOOLEAN_T allow_stdin)
-{
+ARRAY_T* calc_bg_from_file(
+  ALPH_T* alph, 
+  char* filename, 
+  bool symmetrical,		// make background symmetrical
+  bool allow_stdin
+) {
     SEQ_T *seq;
     BGCALC_T *calc;
     FILE *fasta_fp;
@@ -451,7 +462,7 @@ ARRAY_T* calc_bg_from_file(ALPH_T* alph, char* filename, BOOLEAN_T allow_stdin)
 
     order = 0;
     eplison = 1.0;
-    status = open_file(filename, "r", allow_stdin, "FASTA sequences",
+    status = open_file(filename, "r", allow_stdin, "FASTA sequences", 
         "sequences", &fasta_fp);
     if (!status) Rf_error("exit:%d", (EXIT_FAILURE));
 
@@ -470,7 +481,9 @@ ARRAY_T* calc_bg_from_file(ALPH_T* alph, char* filename, BOOLEAN_T allow_stdin)
       }
     }
     fclose(fasta_fp);
-    return calculate_markov_model(alph, order, eplison, join, NULL, &calc);
+    ARRAY_T *bg = calculate_markov_model(alph, order, eplison, join, NULL, &calc);
+    if (symmetrical) average_freq_with_complement(alph, bg);
+    return(bg);
 }
 
 #ifdef MAIN
@@ -489,9 +502,9 @@ int main(int argc, char *argv[])
   SEQ_T**   sequences;
   int       num_seqs;
   int       i_seq;
-  BOOLEAN_T seq_reader = FALSE;
-  BOOLEAN_T many = FALSE;
-  BOOLEAN_T dna = FALSE;
+  bool seq_reader = false;
+  bool many = false;
+  bool dna = false;
   int       max_chars = -1;
   ALPH_T*   alph;
 
@@ -521,11 +534,11 @@ int main(int argc, char *argv[])
 	simple_setopt(argc, argv, option_count, options);
 
   // Parse the command line.
-  while (1) {
+  while (1) { 
     int c = 0;
     char* option_name = NULL;
     char* option_value = NULL;
-		const char *  message = NULL;
+		const char* message = NULL;
 
     // Read the next option, and break if we're done.
     c = simple_getopt(&option_name, &option_value, &option_index);
@@ -533,15 +546,15 @@ int main(int argc, char *argv[])
       break;
     } else if (c < 0) {
     	simple_getopterror(&message);
-      die("Error processing command line options (%s)\n", message);
+      die("Error processing command line options: %s\n", message);
     }
 
     if (strcmp(option_name, "seq-reader") == 0) {
-      seq_reader = TRUE;
+      seq_reader = true;
     } else if (strcmp(option_name, "many") == 0) {
-      many = TRUE;
+      many = true;
     } else if (strcmp(option_name, "dna") == 0) {
-      dna = TRUE;
+      dna = true;
     } else if (strcmp(option_name, "blocksize") == 0) {
       max_chars = atoi(option_value);
     } else if (strcmp(option_name, "verbosity") == 0) {
@@ -563,7 +576,7 @@ int main(int argc, char *argv[])
   }
 
   // Open the file for reading.
-  if (open_file(fasta_filename, "r", TRUE, "FASTA", "sequences", &fasta_file)
+  if (open_file(fasta_filename, "r", true, "FASTA", "sequences", &fasta_file)
       == 0) {
     Rf_error("exit:%d", 1);
   }
@@ -614,7 +627,7 @@ int main(int argc, char *argv[])
       }
     }
   }
-
+    
   fclose(fasta_file);
   alph_release(alph);
   return(0);

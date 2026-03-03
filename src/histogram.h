@@ -38,7 +38,7 @@ extern void histogram(
 
 /* set up to make a histogram */
 extern void init_histogram(
-  BOOLEAN stream,	/* reading from a file */
+  bool stream,	/* reading from a file */
   double *data_array,	/* array containing values to plot */
   int n,		/* size of array */
   int *bins,		/* bins of histogram */

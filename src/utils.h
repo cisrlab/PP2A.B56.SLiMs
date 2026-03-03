@@ -16,11 +16,6 @@
 #include <float.h>
 #include "macros.h"
 
-
-#define FALSE false
-#define TRUE true
-typedef bool BOOLEAN_T;
-
 typedef int VERBOSE_T;
 #define INVALID_VERBOSE 0
 #define QUIET_VERBOSE 1
@@ -28,13 +23,13 @@ typedef int VERBOSE_T;
 #define HIGH_VERBOSE 3
 #define HIGHER_VERBOSE 4
 #define DUMP_VERBOSE 5
+DEXTERN(VERBOSE_T, verbosity, NORMAL_VERBOSE);
 
 #define BIG HUGE_VAL
 #define LITTLE -BIG
+#define SMALL_POS 1e-300
 
 #define SHUFFLE(base, n) shuffle(base, n, sizeof *(base))
-
-extern VERBOSE_T verbosity;
 
 /*
  * Support LLVM as a compiler.
@@ -64,6 +59,14 @@ double myclock(void);
  ********************************************************************/
 double mysysclock(void);
 
+//
+// Return the elapsed Wall Time in microseconds since
+// the first call to mytime() (or the previous call).
+//
+double mytime(
+  bool previous		// if True, time since previous call, not first call
+);
+
 /************************************************************************
  * char* make_path_to_file
  *
@@ -92,10 +95,10 @@ char* concat_string( const char *string1, const char* string2);
  *
  * RETURN: Was the open successful?
  ************************************************************************/
-BOOLEAN_T open_file
+bool open_file
   (const char*     filename,            /* Name of the file to be opened. */
    const char*     file_mode,           /* Mode to be passed to fopen. */
-   BOOLEAN_T allow_stdin,         /* If true, filename "-" is stdin. */
+   bool allow_stdin,         /* If true, filename "-" is stdin. */
    const char*     file_description,
    const char*     content_description,
    FILE **         afile);              /* Pointer to the open file. */
@@ -124,7 +127,7 @@ FILE* open_command_pipe
    char*     test_arguments,   // Arguments used when searching for program.
    char*     expected_reply,   // Expected reply from search.
    char*     real_arguments,   // Arguments used when running the program.
-   BOOLEAN_T stdout_on_error,  // If command fails, return STDOUT?
+   bool stdout_on_error,  // If command fails, return STDOUT?
    char*     error_message);   // Error or warning if command fails.
 
 
@@ -156,14 +159,14 @@ void die
 /**************************************************************************
  * Make an assertion, and print the given message if the assertion fails.
  *
- * If the first parameter is set to TRUE, then die if the assertion
+ * If the first parameter is set to true, then die if the assertion
  * doesn't go through.  Otherwise, just issue the warning.
  *
  * On exit, dump core if DEBUG is defined.
  **************************************************************************/
 void myassert
-  (BOOLEAN_T die_on_error,
-   BOOLEAN_T test,
+  (bool die_on_error,
+   bool test,
    char*  const    format,
    ...);
 
@@ -241,20 +244,25 @@ PROB_T log_prob
 )
 
 /**************************************************************************
- * Compute the logarithm of x.  Returns LOG_ZERO if x==0.
+ * Compute the logarithm of x.  Returns SMALL_POS if x==0.
  **************************************************************************/
-static inline PROB_T my_log(PROB_T x) {
+static inline PROB_T my_log_helper(PROB_T x, bool base2) {
   double lx;
   if (x > 0.0) {
-    lx = log(x); // the macro below would copy this so don't calculate in the macro
-    return(LOG_VALUE(lx));
+    lx = log(x);
+    if (base2) {
+      return(LOG_VALUE(lx) * 1.44269504);
+    } else {
+      return(LOG_VALUE(lx));
+    }
   } else if (x < 0.0) {
     die("Tried to take the log of a negative value (%g).", x);
   } // else if (x == 0.0)
-  return(LOG_ZERO);
+  return(SMALL_POS);
 }
 
-#define my_log2(x)   (my_log(x) * 1.44269504)
+#define my_log(x)   my_log_helper(x, false)
+#define my_log2(x)  my_log_helper(x, true)
 
 
 /**************************************************************************
@@ -294,14 +302,14 @@ double get_next_larger_double(double x);
 /**************************************************************************
  * Test for zero on a value that may be either a log or a raw float.
  **************************************************************************/
-BOOLEAN_T is_zero
+bool is_zero
   (double    value,
-   BOOLEAN_T log_form);
+   bool log_form);
 
 /**************************************************************************
  * Test to see if two values are approximately equal.
  **************************************************************************/
-BOOLEAN_T almost_equal
+bool almost_equal
   (double value1,
    double value2,
    double slop);
@@ -309,9 +317,15 @@ BOOLEAN_T almost_equal
 /*************************************************************************
  * Convert a boolean to and from a "true" or "false" string.
  *************************************************************************/
-const char*  boolean_to_string(BOOLEAN_T the_boolean);
+const char*  boolean_to_string(bool the_boolean);
 
-BOOLEAN_T boolean_from_string(char* true_or_false);
+bool boolean_from_string(char* true_or_false);
+
+//
+// Convert null-terminated unsigned character string to character string.
+// Remember to free the returned char string.
+//
+char *uchar_to_char(unsigned char *ustr);
 
 /*************************************************************************
  * Writes a unicode codepoint in UTF-8 encoding to the start of the buffer
@@ -336,7 +350,7 @@ int32_t unicode_from_string(const char *str, size_t len, int *code_unit_length);
 
 /*************************************************************************
  * MEME and DREME motifs can have very small E-values which are impossible
- * to represent using a double. By converting to log values we lose
+ * to represent using a double. By converting to log values we lose 
  * precision but the range possible becomes much greater.
  *************************************************************************/
 double log10_evalue_from_string(const char *str);
@@ -375,7 +389,7 @@ char* log10_evalue_to_string2(double log10_ev, int prec,
 /**************************************************************************
  * Does a given character appear in a given string?
  **************************************************************************/
-BOOLEAN_T char_in_string
+bool char_in_string
   (const char* a_string,
    char        a_char);
 
@@ -428,7 +442,7 @@ void copy_string
  * Test whether a string is empty or contains only white space
  * Assumes a null terminated string.
  ************************************************************************/
-BOOLEAN_T is_empty_string
+bool is_empty_string
   (char *s);
 
 /************************************************************************
@@ -450,33 +464,38 @@ void get_non_blank
 /************************************************************************
  *  Is the next character in the file the eoln character
  ************************************************************************/
-BOOLEAN_T is_eoln
+bool is_eoln
   (FILE * infile);
 
 /************************************************************************
  *  Does a file exist?
  ************************************************************************/
-BOOLEAN_T file_exists(char* file_path);
+bool file_exists(char* file_path);
 
 /************************************************************************
  *  Is a file executable?
  ************************************************************************/
-BOOLEAN_T file_executable(char* file_path);
+bool file_executable(char* file_path);
+
+/************************************************************************
+ *  Is a file a directory?
+ ************************************************************************/
+bool file_directory(char* file_path);
 
 /******************************************************************
  * This function copies the contents of the file named by the first
  * argument into the file named by the second argument.
  *
- * Returns TRUE if successful, FALSE otherwise.
+ * Returns true if successful, false otherwise.
 ******************************************************************/
-BOOLEAN_T copy_file(char *from_filename, char *to_filename);
+bool copy_file(char *from_filename, char *to_filename);
 
 /******************************************************************
  * This function checks the environment for a variable pointing
- * to where the MEME etc files are installed. If the environment
+ * to where the MEME data files are installed. If the environment
  * variable is not found, it returns the definitions from the configuration.
 ******************************************************************/
-const char* get_meme_etc_dir();
+const char* get_meme_data_dir();
 
 /******************************************************************
  * This function checks the environment for a variable pointing
@@ -515,6 +534,16 @@ char* get_meme_dirs_file(const char* dirs, const char* file_name);
 char* get_meme_bin_file(const char* file_name);
 
 /******************************************************************
+ * This function checks the environment variables MEME_BIN_DIRS and
+ * MEME_LIBEXEC_DIR for a file with the given name. If neither of those
+ * is set then it will look for the file in the compiled LIBEXEC_DIR.
+ * If the file is found then an allocated path is returned to it,
+ * alternatively NULL is returned if no such file exists.
+ * The caller is responsible for freeing memory.
+******************************************************************/
+char* get_meme_libexec_file();
+
+/******************************************************************
  *
  * This function creates a string from the command-line arguments.
  * Caller is responsible for freeing the string returned.
@@ -530,7 +559,7 @@ char *get_command_line(int argc, char* argv[]);
  * If there is a string, then copy it.
  * If neither a file or string is avaliable then return null.
  * Convert windows new lines (CRLF) into into line feed. Convert old mac
- * new lines (CR) into line feed, note that LFCR is not supported.
+ * new lines (CR) into line feed, note that LFCR is not supported. 
  * Merge 3 or more contiguous line feeds into two line feeds.
  * Remove leading and trailing space.
  *
@@ -563,6 +592,19 @@ int rand_int(const unsigned n);
 /* n must be > 0; Mersenne Twist */
 double rand_dbl(const double n);
 
-
+/*****************************************************************************
+ * Outputs the file name when given a path to that file.
+ *
+ * Searches the path string for '/' chars.  Removes the extension
+ * if requested.  Replaces underscores with spaces if requested.
+ *
+ * This is not intended to be perfect as I'm sure there's some valid way to have
+ * a '/' in a file name but I expect it will work most of the time.
+ *****************************************************************************/
+char *file_name_from_path(
+  char *path, 
+  bool remove_ext, 
+  bool remove_meme_ext,
+  bool replace_underscores
+);
 #endif
-

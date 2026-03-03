@@ -1,4 +1,3 @@
-
 #ifndef MOTIF_IN_COMMON_H
 #define MOTIF_IN_COMMON_H
 

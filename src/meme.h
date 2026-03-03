@@ -9,14 +9,15 @@
 #include "logs.h"
 #include "prior.h"
 #include "logodds.h"
+#include "string-list.h"
+#include "data_types.h"
 
 // conventions:
 //  ALL_CAPS  user defined type
 //  Vname   enum type value
 //  name()    macro
 
- // globals 
-DEXTERN(int, PAGEWIDTH, 80); // page width for printing must be > MSN + 40 (see user.h) 
+// globals 
 DEXTERN(bool, VERBOSE, false); // turn on verbose output mode 
 DEXTERN(bool, TRACE, false); // print each start tried 
 DEXTERN(bool, PRINT_FASTA, false); // print sites in BLOCKS format 
@@ -35,8 +36,14 @@ EXTERN char *OFFSET_FILE; // current name of offset file
 //  2 : Per start
 DEXTERN(int, TIMER, 0);     
 
+//#define PAGEWIDTH 80		// page width for printing must be > MSN + 40 (see user.h) 
+
 // macro to write a line of asterisks 
-#define PSTARS(f) {int i; for (i=0;i<PAGEWIDTH;i++)fprintf(f, "*");fprintf(f, "\n");}
+//#define PSTARS(f) {int i; for (i=0;i<PAGEWIDTH;i++)fprintf(f, "*");fprintf(f, "\n");}
+
+// For new starting points.
+typedef enum {Sym, Tri} MASK_TYPE;
+typedef enum {Minp, Minpop} MASK_COMB_TYPE;
 
 // type of negative motifs 
 typedef enum {Pair, Blend} NEGTYPE;
@@ -50,9 +57,9 @@ typedef enum {Mega, MegaP, Dmix, Dirichlet, Addone} PTYPE;
 // type of handling of DNA strands in MAST 
 typedef enum {Combine, Separate, Norc, Unstranded} STYPE;
 
-// type of objective function 
-typedef enum {Classic, NC, SmHG, CV, NZ, LL} OBJTYPE;
-typedef enum {mHG, mRS} TESTTYPE;
+// type of objective function for MEME
+typedef enum {Classic, NC, SE, DE, NZ, CE, CD} OBJTYPE;
+typedef enum {mHG, mRS, mBN, No_testtype} TESTTYPE;
 
 // type of objective function for use during branching search 
 typedef enum {LLR_POP, LLR, Likelihood, Class, GLAM} GLOB_OBJ_FN;
@@ -64,12 +71,30 @@ typedef enum {NORMAL, X_ONLY, ALL, NO_POINT_B} POINT_BRANCHES;
 // The pointer to zi is offset to point to Z_i=0 
 #define Zi(j) (zi[(j)])
 
+// Put a bound on the number of local maxima/dataset to keep memory under control.
+#define MAX_LOCAL_MAXIMA 1000000
+
+// Possible maxima for a set of datasets and model type and width combination.
+// With TCM model, there is a hard limit; otherwise one per sequence.
+#define pmax(p, c, m, w) (\
+  (m)==Tcm ? \
+    MIN(2*MAX_LOCAL_MAXIMA, ps((p), (w)) + ((c) ? ps((c), (w)) : 0 ) ) : \
+      ((c)==NULL ? (p)->n_samples : (p)->n_samples+(c)->n_samples) \
+  )
+
 // possible sites for a dataset, width combination 
 #define ps(d, w) MAX((d)->n_samples,((d)->total_res-((d)->n_samples * ((w)-1))))
 
+// Fraction of sequences in included groups
+#define group_scale(d) ( (d)->n_included / (double) (d)->n_samples )
+
 // tlb 6-18-99; added with wgt_total_res 
-#define wps(d, w) ( MAX (wps1(d, w), 2) )
-#define wps1(d, w) ( (d)->wgt_total_res - ((d)->n_samples * ( (w) - 1) ) )
+// TLB 8-OCT-2018; added the scale factor to account for just the included sequences
+//TODO revert
+//#define wps(d, w, inc) ( MAX (wps1(d, w, inc), 2) )
+//#define wps1(d, w, inc) ( (d)->wgt_total_res - ((d)->n_samples * ( (w) - 1) ) )
+#define wps(d, w, inc) ( MAX (wps1(d, w, inc), 2) )
+#define wps1(d, w, inc) ( ( (inc) ? group_scale(d) : 1) * ( (d)->wgt_total_res - ((d)->n_samples * ( (w) - 1) ) ) )
 
 // number of occurrences of a motif based on dataset, w, lambda 
 #define nsites(d, w, l) ((l) * ps(d, w))
@@ -85,40 +110,74 @@ typedef enum {NORMAL, X_ONLY, ALL, NO_POINT_B} POINT_BRANCHES;
 
 // DNA palindrome enforcer: combine columns and complementary residues 
 #define palindrome(theta1, theta2, w, alph)        \
-{                   \
-  int i, j;               \
-  for (i=0; i<=(w+1)/2; i++) { /* create the palindrome */  \
-    for (j=0; j< alph_size_core(alph); j++) {         \
-      int ii = (w)-i-1;             \
-      int jj = alph_complement((alph), (j));       \
-      theta2[i][j] = (theta1[i][j] + theta1[ii][jj])/2;     \
-      theta2[ii][jj] = MAX(0, theta2[i][j] - 1e-6);     \
-    }                 \
-  }                 \
-}                 \
+{                   						\
+  int i, j;               					\
+  for (i=0; i<=(w+1)/2; i++) { /* create the palindrome */  	\
+    for (j=0; j< alph_size_core(alph); j++) {         		\
+      int ii = (w)-i-1;             				\
+      int jj = alph_complement((alph), (j));       		\
+      theta2[i][j] = (theta1[i][j] + theta1[ii][jj])/2;     	\
+      theta2[ii][jj] = MAX(0, theta2[i][j] - 1e-6);     	\
+    }                 						\
+  }                 						\
+}                 						\
 
-// Macros to control skipping of samples in different groups.
-#define set_seq_groups_to_skip(dataset, skip0, skip1, skip2) \
-  dataset->save_skip[0] = dataset->skip[0]; \
-  dataset->save_skip[1] = dataset->skip[1]; \
-  dataset->save_skip[2] = dataset->skip[2]; \
-  dataset->skip[0] = skip0; \
-  dataset->skip[1] = skip1; \
-  dataset->skip[2] = skip2;
-
-#define set_seq_groups_to_include(dataset, inc0, inc1, inc2) \
-  set_seq_groups_to_skip(dataset, !(inc0), !(inc1), !(inc2))
-
-#define restore_seq_groups_to_skip(dataset) \
-  dataset->skip[0] = dataset->save_skip[0]; \
-  dataset->skip[1] = dataset->save_skip[1]; \
-  dataset->skip[2] = dataset->save_skip[2];
+// Macros to control inclusion of samples in different groups.
+#define set_seq_groups_to_include(dataset, groups) \
+  { \
+    dataset->save_include_group[0] = dataset->include_group[0]; \
+    dataset->save_include_group[1] = dataset->include_group[1]; \
+    dataset->save_include_group[2] = dataset->include_group[2]; \
+    dataset->include_group[0] = groups[0]; \
+    dataset->include_group[1] = groups[1]; \
+    dataset->include_group[2] = groups[2]; \
+    dataset->n_included = \
+      (dataset->include_group[0]?dataset->n_group[0]:0) \
+      + (dataset->include_group[1]?dataset->n_group[1]:0) \
+      + (dataset->include_group[2]?dataset->n_group[2]:0); \
+  }
 
 #define restore_seq_groups_to_include(dataset) \
-  restore_seq_groups_to_skip(dataset)
+  { \
+    dataset->include_group[0] = dataset->save_include_group[0]; \
+    dataset->include_group[1] = dataset->save_include_group[1]; \
+    dataset->include_group[2] = dataset->save_include_group[2]; \
+    dataset->n_included = \
+      (dataset->include_group[0]?dataset->n_group[0]:0) \
+      + (dataset->include_group[1]?dataset->n_group[1]:0) \
+      + (dataset->include_group[2]?dataset->n_group[2]:0); \
+  }
 
-#define skip_sample_if_required(dataset, sample) \
-  if (dataset->skip[sample->group]) continue;
+// Advance s_idx to just before next group if samples's group is to be skipped.
+#define skip_group_if_required(dataset, sample, s_idx) \
+  if (! dataset->include_group[sample->group]) {s_idx = dataset->group_last_idx[sample->group]; continue;}
+
+// Macros to control inclusion of different sequence regions.
+#define set_seq_regions_to_include(dataset, incl0, incl1, incl2) \
+  { \
+    dataset->save_include_region[0] = dataset->include_region[0]; \
+    dataset->save_include_region[1] = dataset->include_region[1]; \
+    dataset->save_include_region[2] = dataset->include_region[2]; \
+    dataset->include_region[0] = incl0; \
+    dataset->include_region[1] = incl1; \
+    dataset->include_region[2] = incl2; \
+  }
+
+#define restore_seq_regions_to_include(dataset) \
+  { \
+    dataset->include_region[0] = dataset->save_include_region[0]; \
+    dataset->include_region[1] = dataset->save_include_region[1]; \
+    dataset->include_region[2] = dataset->save_include_region[2]; \
+  }
+
+// Advance s_pos to just before next region if current region is to be skipped.
+#define skip_region_if_required(dataset, s_pos, new_seq) \
+  { \
+     int region = (s_pos <= dataset->region_last_pos[0]) ? 0 : ( (s_pos <= dataset->region_last_pos[1]) ? 1 : 2 ); 	\
+     if (! dataset->include_region[region]) {s_pos = dataset->region_last_pos[region]; new_seq = true; continue;}			\
+  }
+#define regions_are_skipped(dataset) \
+  (dataset->n_region[0] != dataset->max_slength)
 
 // dataset sample 
 typedef struct sample {
@@ -129,23 +188,27 @@ typedef struct sample {
   uint8_t *res; // integer-coded sequence 
   uint8_t *resic; // integer-coded inverse complement 
   double sw; // sequence weight 
-  double *weights; // Pr[pos not contained in previous site] 
+  WEIGHTS_T *weights; // Pr[pos not contained in previous site] 
   double *not_o; // P[no site in [x_{i,j}...x_{i,j+w}] 
   int *log_not_o; // log (not_o) 
   int **pY; // p(Y_j | theta_g) scratch spaces 
   char *pYic; // pY2 > pY1 (site on ic strand if != 0) 
-  double *z; // tlb 6-21-99; E[z_ij] 
-  double *z_buf; // memory allocated for z (as z can be offset)
+  //double *z; // tlb 6-21-99; E[z_ij] 
+  //double *z_buf; // memory allocated for z (as z can be offset); 
+  Z_T *z; // tlb 6-21-99; E[z_ij] 
+  Z_T *z_buf; // memory allocated for z (as z can be offset); 
+		 // Free this, not z.
   double *psp_original; // PSP for this sample; only used to set log_psp;
                         // derived for motif width: dataset->psp_w;
                         // NULL if using uniform priors in this sequence
+  double *psp_original_buf; // Free this, not psp_original.
   double *log_psp; // P_ij: log PSP for this sequence, 1 <= i <= length;
 		   // P_i0: probability of not site in this sequence;
 		   // normalized to width dataset->psp_current_w
   double max_log_psp; // always equal to largest value in log_psp for sequence
   double *log_psp_buf; // memory allocated for log_psp (as log_psp can be offset)
   double *counts; // counts of each character (X causes frac.) 
-  double *logcumback; /*  log cumulative background probabilities
+  LCB_T *logcumback; /*  log cumulative background probabilities
         logcumback[i] = 0 if i=1
                       = log Pr(s_{i-1} | H_0) otherwise
         */
@@ -178,10 +241,13 @@ typedef struct p_prob {
   int x; // sequence # 
   int y; // position # 
   bool ic; // on inverse complement strand 
-  BOOLEAN negative;	// TRUE if from control dataset
-  int rank;		// rank when sorted with control sites
+  bool negative;	// true if from control dataset
+  int rank;		// rank when sorted with control sites; or weighted rank for objfun==CE
   double ranksum;	// sum of ranks of primary sites
-  double prob; // INT_LOG(probability of site) 
+  double dist;		// (weighted) average distance to center up to this rank
+  double in_region;	// (weighted) count of sites in central region up to rank
+  double wN;		// weighted rank
+  double prob; 		// INT_LOG(probability of site) 
 } p_prob;
 
 // a model 
@@ -191,8 +257,6 @@ typedef struct Model {
   int max_w; // maximum allowed width 
   bool all_widths; // consider all widths from min_w to max_w 
   double pw; // prior estimate of width 
-  double min_nsites; // minimum allowed number of sites 
-  double max_nsites; // maximum allowed number of sites 
   double psites; // prior estimate of number of sites 
   P_PROB maxima; // list of sites 
   bool pal; // motif is a DNA palindrome 
@@ -219,6 +283,7 @@ typedef struct Model {
   double logpv; // log likelihood ratio of discrete motif 
   double logev; // log E-value of motif 
   double llr; // log likelihood ratio of motif 
+  double site_threshold; // best site threshold
   int iter; // number of EM iterations used 
   int ID; // processor id 
   int iseq; // start sequence 
@@ -230,10 +295,10 @@ typedef struct Model {
 
 // user-input starting points 
 typedef struct p_point {
-  int c; // number of components 
-  int w[MAXG]; // widths for motifs 
-  double nsites[MAXG]; // nsites for motif 
-  uint8_t *e_cons0[MAXG]; // integer encoded starting subsequence 
+  int c; 			// number of starting points provided by user
+  int *w; 			// widths for motifs 
+  double *nsites; 		// nsites for motif 
+  uint8_t **e_cons0; 		// integer encoded starting subsequence 
 } P_POINT;
 
 // starting point 
@@ -271,7 +336,7 @@ typedef struct candidate {
   double llr;           // LLR of model
 } CANDIDATE;
 
- // summary of motif properties 
+// summary of motif properties 
 typedef struct motif_summary {
   int width; // width of motif 
   int num_sites; // num of sites of motif 
@@ -279,6 +344,8 @@ typedef struct motif_summary {
   double ic; // information content 
   double re; // relative entropy of motif 
   double llr; // log-likelihood ratio 
+  double p_value_exp; // Exponent of p-value of motif 
+  double p_value_mant; // Mantissa of p-value of motif 
   double e_value_exp; // Exponent of E-value of motif 
   double e_value_mant; // Mantissa of E-value of motif 
   double bayes; // bayes threshold 
@@ -286,10 +353,11 @@ typedef struct motif_summary {
   double **pssm; // log odds matrix 
   THETA psfm; // frequency matrix 
   char* regexp; // motif as regular expression 
+  char* consensus; // motif as (possibly IUPAC) consensus
   P_PROB sites; // Pointer to array of motif sites 
 } MOTIF_SUMMARY;
 
- // prior probabilities 
+// prior probabilities 
 typedef struct Priors {
   PTYPE ptype; // type of prior to use 
   double prior_count[MAXALPH]; // ptype = Dirichlet: pseudo counts/letter 
@@ -297,9 +365,9 @@ typedef struct Priors {
   PriorLib *plib0; // ptype = MegaP: b=0 dirichlet mixture 
 } PRIORS;
 
- // a known motif 
+// a known motif 
 typedef struct motif {
-  char name[MNAME]; // names of motif 
+  char *name; // names of motif 
   int width; // (known) width of motif 
   int pos; // # positive samples this motif 
   double roc; // best roc for this motif 
@@ -327,86 +395,117 @@ typedef struct branch_params {
   bool w_branch; // Controls whether width-branching occurs 
 } BRANCH_PARAMS;
 
+// struct for histograms
+typedef struct hist_itm {
+  int x;                        // x
+  int count;                    // number items with this value of x
+} HIST_ITM;
+typedef struct hist {
+  int n;                        // number of items in histogram
+  HIST_ITM *entries;            // entries in the histogram
+} HIST;
+
+// sequence group assignments
+typedef struct Group_t {
+  bool em[3];			// groups to use for EM
+  bool trim[3];			// groups to use for motif trimming
+  bool pvalue[3];		// groups to use for final p-value
+  bool nsites[3];		// groups to use for final nsites
+} GROUP_T;
+
 // a dataset 
 typedef struct Dataset {
  // set by read_seq_file 
-  ALPH_T *alph; // alphabet 
-  int total_res; // total size of dataset 
-  double wgt_total_res; // weighted (sw*slen) total size of dataset
-  int n_samples; // number samples 
-  int n_group[3]; // number samples in groups 0, 1, 2
-  SAMPLE **samples; // array of (pointers to) samples 
-  SAMPLE **input_order; // samples in input order
-  double *seq_weights; // array of sequence weights from input file
-  int n_wgts; // number of sequence weights given
-  long max_slength; // maximum length of sequences 
-  long min_slength; // minimum length of sequences 
-  int psp_w; // w defined by PSP file; 0 means no PSP file
-  int log_psp_w; // log_psp is normalized for this width
-  // 0 means need to normalize first time
-  double *res_freq; // average letter frequencies 
+  ALPH_T *alph;				// alphabet 
+  int total_res;			// total size of dataset 
+  double wgt_total_res;			// weighted (sw*slen) total size of dataset
+  int n_samples;			// number of sequences in primary dataset
+  int n_group[3];			// number sequences in groups 0, 1, 2
+  int group_last_idx[3];		// index of last sequence in groups 0, 1, 2
+  SAMPLE **samples;			// array of (pointers to) sequences
+  SAMPLE **input_order;			// samples in input order (or equal to samples)
+  double *seq_weights;			// array of sequence weights from input file
+  int n_wgts;				// number of sequence weights given
+  long max_slength;			// maximum length of sequences 
+  long min_slength;			// minimum length of sequences 
+  double ce_frac;			// fraction of sequence length for central region
+  int n_region[3];			// number positions in regions 0, 1, 2 (l_flank, center, r_flank)
+  int region_last_pos[3];		// index of last position in regions 0, 1, 2 (l_flank, center, r_flank)
+  int ce_max_dist;			// maximum distance between motif and sequence centers for central region
+  int psp_w;				// w defined by PSP file; 0 means no PSP file
+  int log_psp_w;			// log_psp is normalized for this width
+  					// 0 means need to normalize first time
+  double *res_freq;			// average letter frequencies 
   // *** MEME parameters ***
-  // DNA palindrome flag:
-  //  0 : no palindromes
-  //  1 : force DNA palindromes
-  bool pal;                  
-  THETA map; // letter to frequency vector mapping 
-  THETA lomap; // letter to logodds vector mapping 
-  MOTIF motifs[NMOTIFS]; // known motifs in dataset 
-  int nkmotifs; // number of known motifs in dataset 
-  NEGTYPE negtype; // how to use negative examples 
-  int back_order; // order of Markov background model 
-  ARRAY_T *back; // Markov background model
-  double log_total_prob; // total (log) cumulative background prob. 
-  PRIORS *priors; // the prior probabilities model 
-  P_POINT *p_point; // previously learned starting points 
-  double wnsites; // weight on prior on nsites 
-  bool ma_adj; // adjust width/pos. using mult. algn. method 
-  double wg; // gap cost (initialization) 
-  double ws; // space cost (extension) 
-  bool endgaps; // penalize end gaps if true 
-  double distance; // convergence radius 
-  int nmotifs; // number of motifs to find 
-  int maxiter; // maximum number of iterations for EM 
-  double evt; // E-value threshold 
-  char *mod; // name of model 
-  char *mapname; // name of spmap 
-  double map_scale; // scale of spmap 
-  char *priorname; // name of type of prior 
-  double beta; // beta for prior 
-  int seed; // random seed 
-  double seqfrac; // fraction of sequences to use 
-  char *plib_name; // name of file with prior library 
-  char *bfile; // name of background model file 
-  char *datafile; // name of the dataset file 
-  char *negfile; // name of negative examples file 
-  char *command; // command line 
-  OBJTYPE objfun; // objective function 
-  THETA pairwise; // contains score matrix for pairwise scores 
-  char *output_directory; // meme output directory 
-  double max_time; // maximum allowed CPU time 
-  int main_hs; // max size of heaps to be used throughout
-  TESTTYPE test;		/* type of statistical test: Fisher (mHG) or rank-sum (mRS). */
-  double ctfrac;		/* fraction of control sequences to use */
-  int shuffle;			// preserve frequencies this size kmers when shuffling
-  double hs_decrease;           /* the rate at which heap size decreases off
-                                   central s_points */
-  BRANCH_PARAMS *branch_params; // The branching params requested by the user 
-  bool use_llr; // use true LLR fn during meme, cf POP 
-  bool print_heaps; // print seed heap after each branch round 
-  bool print_pllr; // print the LLR of the aligned planted sites 
-  double pllr; // the LLR of the aligned planted sites 
-  double param_V; // Parameter used by the "deme" objective fn 
-  int kpos; // known position of motif in all sequences
-  bool print_pred; // Print the sites predicted by MEME 
-  char *correct_seed; // motif known to be in all sequences 
-  double pseu[MAXALPH]; // letter pseudo-counts for use in GLAM fn 
-  BOOLEAN skip[3];		// Which sequence groups to skip (0=main; 1,2: holdout/noise).
-  BOOLEAN save_skip[3];		// Saves previous state of skip[].
-  int last_seed_seq;		// Last sequence to search for seed words.
-  int last_seed_pos;		// Last position to search for seed words.
-  int max_words;		// Maximum number of seed words to test as EM starts.
-  int imotif;                   /* # of the current motif being elucidated */
+  bool mpi;				// hidden parameter set by exec_parallel
+  bool invcomp;				// use both strands if true
+  bool pal;                  		// DNA palindrome flag:
+  					//  0 : no palindromes
+  					//  1 : force DNA palindromes
+  THETA map;				// letter to frequency vector mapping 
+  THETA lomap;				// letter to logodds vector mapping 
+  MOTIF *motifs;			// known motifs in dataset 
+  NEGTYPE negtype;			// how to use negative examples 
+  int back_order;			// order of Markov background model 
+  ARRAY_T *back;			// Markov background model
+  double log_total_prob;		// total (log) cumulative background prob. 
+  PRIORS *priors;			// the prior probabilities model 
+  P_POINT *p_point;			// previously learned starting points 
+  double min_nsites;			// minimum allowed number of sites 
+  double max_nsites;			// maximum allowed number of sites 
+  double wnsites;			// weight on prior on nsites 
+  bool ma_adj;				// adjust width/pos. using mult. algn. method 
+  double wg;				// gap cost (initialization) 
+  double ws;				// space cost (extension) 
+  bool endgaps;				// penalize end gaps if true 
+  double distance;			// convergence radius 
+  int nmotifs;				// number of motifs to find 
+  int maxiter;				// maximum number of iterations for EM 
+  double evt;				// E-value threshold 
+  char *mod;				// name of model 
+  char *mapname;			// name of spmap 
+  double map_scale;			// scale of spmap 
+  char *priorname;			// name of type of prior 
+  double beta;				// beta for prior 
+  int seed;				// random seed 
+  double seqfrac;			// fraction of sequences to use 
+  char *plib_name;			// name of file with prior library 
+  char *bfile;				// name of background model file 
+  char *datafile;			// name of the dataset file 
+  char *negfile;			// name of control dataset file 
+  int neg_n_samples;			// number of sequences in negfile
+  char *pspfile;			// name of position-specific priors file 
+  char *command;			// command line 
+  OBJTYPE objfun;			// objective function 
+  THETA pairwise;			// contains score matrix for pairwise scores 
+  char *output_directory;		// MEME output directory 
+  double max_time;			// maximum allowed CPU time 
+  int main_hs;				// max size of heaps to be used throughout
+  TESTTYPE test;			// type of statistical test: Fisher (mHG) or rank-sum (mRS) or sign (mBN).
+  double hsfrac;			// fraction of control sequences to use
+  int shuffle;				// preserve frequencies this size kmers when shuffling
+  double hs_decrease;			// the rate at which heap size decreases off central s_points
+  BRANCH_PARAMS *branch_params;		// The branching params requested by the user 
+  bool use_llr;				// use true LLR fn during search for starts, not POP 
+  int brief;				// omit large tables in output (.txt and .html) if more than brief primary sequences
+  bool print_heaps;			// print seed heap after each branch round 
+  bool print_pred;			// Print the sites predicted by MEME 
+  bool include_group[3];		// Which sequence groups to skip (0=main; 1,2: holdout/noise).
+  bool save_include_group[3];		// Saves previous state of skip[].
+  bool include_region[3];		// Which sequence regions to include in search for stats and EM 
+					// (0:l_flank, 1:center, 2:r_flank)
+  bool save_include_region[3];		// Saves previous state of include_region
+  int n_included;			// Number of sequences in included groups
+  GROUP_T primary_groups;		// primary sequence groups to use for EM, motif trimming, p-values and nsites
+  GROUP_T control_groups;		// control sequence groups to use for EM, motif trimming, p-values and nsites
+  int last_seed_seq;			// Last sequence to search for seed words.
+  int last_seed_pos;			// Last position to search for seed words.
+  int search_size;			// Sequences beyond this point put in groups 1&2 for speed.
+  int max_words;			// Maximum number of seed words to test as EM starts.
+  int max_size;				// Maximum allowed size of primary dataset
+  int no_rand;				// Do not randomize sequence order for -searchsize.
+  int classic_max_nsites;		// Limit number of sites in Classic & NC for speed.
+  int imotif;                   	// # of the current motif being elucidated.
 } DATASET;
 
 // motif occurrence in sequence 
@@ -429,8 +528,14 @@ typedef struct {
   char *diagram;
 } TILING;
 
- // subroutines 
-
+// subroutines
+int meme_main(
+  int argc,
+  char *argv[],
+  ARRAYLST_T* seq_array,
+  int width,
+  bool eliminate_repeats
+);
 double exp(double x);
 int em_subseq(
   THETA map, // freq x letter map 
@@ -445,7 +550,8 @@ int em_subseq(
 );
 void subseq7(
   MODEL *model, // the model
-  DATASET *dataset, // the dataset 
+  DATASET *primary, // the primary sequences
+  DATASET *control, // the control sequences
   int w, // w to use
   int n_nsites0, // number of nsites0 values to try 
   S_POINT s_points[], // array of starting points: 1 per nsites0 
@@ -511,7 +617,8 @@ void init_theta(
   ALPH_T *alph // alphabet
 );
 S_POINT *get_starts(
-  DATASET *dataset, // the dataset 
+  DATASET *primary, // the primary sequences
+  DATASET *control, // the controlsequences
   MODEL *model, // the model 
   uint8_t *e_cons, // encoded consensus sequence 
   int *n_starts // number of starting points 
@@ -564,7 +671,10 @@ void init_meme(
   DATASET **neg_dataset_p, // dataset of negative examples OUT 
   char *text_filename, // name of the text output file IN 
   char **output_dirname, // name of the output directory OUT 
-  FILE **text_output // destination for text output OUT 
+  FILE **text_output, // destination for text output OUT
+  ARRAYLST_T* seq_array,
+  int width,
+  bool eliminate_repeats
 );
 
 int exec_parallel(
@@ -583,15 +693,6 @@ double min_sites(
   double nu, // degrees of freedom 
   double alpha, // significance level 
   double max_h // maximum entropy 
-);
-
-int read_motifs (
-  ALPH_T *alph,
-  FILE *fdata, // opened dataset file 
-  char *filename, // motif file 
-  MOTIF motif[NMOTIFS], // motif info 
-  bool save_dataset, // return dataset in memory 
-  DATASET *dataset // integer-encoded dataset 
 );
 
 SITE *get_sites(
@@ -613,8 +714,9 @@ double **make_log_odds(
 int get_max(
   MOTYPE mtype, // the model type 
   DATASET *dataset, // the dataset 
-  BOOLEAN negative,     // control dataset?
+  bool negative,     // control dataset?
   int w, // length of sites 
+  int n_maxima, // number of maxima already in array
   P_PROB maxima, // array of encoded site starts of local maxima 
   bool ic, // use inverse complement, too 
   bool sort // sort the maxima 
@@ -629,10 +731,28 @@ int align_top_subsequences(
   uint8_t *eseq, // integer encoded subsequence 
   char *name, // name of sequence 
   int n_nsites0, // number of nsites0 values to try 
-  int n_maxima, // number of local maxima 
+  int n_pos_maxima, // number of local maxima in primary sequences
+  int n_neg_maxima, // number of local maxima in control sequences
   P_PROB maxima, // sorted local maxima indices 
   double *col_scores, // column scores for last start point 
   S_POINT s_points[] // array of starting points 
+);
+
+int get_best_nsites(
+  MODEL *model,					/* the model; may be null */
+  DATASET *dataset,				/* the dataset */
+  int min_nsites,				/* minimum sites */
+  int max_nsites,				/* minimum sites */
+  int w, 	 				/* width of motif; may differ in model */
+  int n_pos_maxima,				/* number of primary maxima in model */
+  int n_neg_maxima,				/* number of control maxima in model */
+  P_PROB maxima,				// sorted maxima
+  double *col_scores,				/* column scores */
+  double *best_wN,				// best weighted number of sites
+  double *best_log_pv,				/* best p-value */
+  double *best_log_ev,				/* best E-value */
+  double *best_llr,  				/* LLR of best p-value */
+  double *best_threshold 			// site prob threshold 
 );
 
 double log_qfast(
@@ -699,7 +819,38 @@ void renormalize (
   MOTYPE mtype // OOPS, ZOOPS or TCM? 
 );
 
-#include "star.h"
+bool init_model(
+  S_POINT *s_point, // the starting point
+  MODEL *model, // the model to intialize
+  DATASET *dataset, // the dataset
+  int imotif // motif number
+);
+
+void erase(
+  DATASET *dataset, // the dataset 
+  MODEL *model // the model 
+);
+
+PRIORS *create_priors(
+  PTYPE ptype, // type of prior to use
+  // beta for dirichlet priors;
+  // < 0 only returns alphabet
+  double beta,
+  DATASET *dataset, // the dataset
+  char *plib_name // name of prior library
+);
+
+void init_meme_background (
+  char *bfile, // background model file
+  bool rc, // average reverse comps
+  DATASET *dataset, // the dataset
+  char *alph_file, // alphabet file
+  ALPHABET_T alphabet_type,     // alphabet type
+  int order, // (maximum) order of Markov model to load or order to create
+  char *seqfile, // name of a sequence file (required)
+  bool status // print status message
+);
+
 #include "llr.h"
 #include "em.h"
 #include "read_seq_file.h"

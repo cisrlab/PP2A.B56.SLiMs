@@ -34,12 +34,12 @@ struct fscope {
 struct mscope {
   int options_found;
   int options_returned;
-  BOOLEAN_T has_name;
-  BOOLEAN_T has_pssm;
-  BOOLEAN_T has_pspm;
-  BOOLEAN_T has_width;
-  BOOLEAN_T has_sites;
-  BOOLEAN_T has_evalue;
+  bool has_name;
+  bool has_pssm;
+  bool has_pspm;
+  bool has_width;
+  bool has_sites;
+  bool has_evalue;
   MOTIF_T *motif;
 };
 
@@ -198,10 +198,10 @@ void html_error(void *ctx, const char *format, ...) {
   CTX_T *data;
   va_list  argp;
   int len;
-  char dummy[1], *msg;
+  char *msg;
   data = (CTX_T*)ctx;
   va_start(argp, format);
-  len = vsnprintf(dummy, 1, format, argp);
+  len = vsnprintf(NULL, 0, format, argp);
   va_end(argp);
   msg = mm_malloc(sizeof(char) * (len + 1));
   va_start(argp, format);
@@ -217,14 +217,14 @@ void html_error(void *ctx, const char *format, ...) {
 /*****************************************************************************
  * Read a single number, checking if a newline character was skipped.
  ****************************************************************************/
-BOOLEAN_T read_number(const char *str, int *offset, BOOLEAN_T *newline, double *num) {
+bool read_number(const char *str, int *offset, bool *newline, double *num) {
   char *endptr;
-  BOOLEAN_T valid;
+  bool valid;
   // consume space, checking for new line
   *newline = (*offset == 0);// the inital read is always a new line
-  while (TRUE) {
+  while (true) {
     if (str[*offset] == '\n') {
-      *newline = TRUE;
+      *newline = true;
     } else if (!isspace(str[*offset])) {
       break;
     }
@@ -240,10 +240,10 @@ BOOLEAN_T read_number(const char *str, int *offset, BOOLEAN_T *newline, double *
 /*****************************************************************************
  * Read a grid of numbers into PSPM or PSSM
  ****************************************************************************/
-static void read_grid(CTX_T *ctx, BOOLEAN_T is_pspm, const char *grid) {
+static void read_grid(CTX_T *ctx, bool is_pspm, const char *grid) {
   ARRAY_T *line;
   MATRIX_T *matrix;
-  BOOLEAN_T newline, read_num;
+  bool newline, read_num;
   int offset, line_count, row, col;
   double num;
   char *name, *type;
@@ -279,7 +279,7 @@ static void read_grid(CTX_T *ctx, BOOLEAN_T is_pspm, const char *grid) {
   line = allocate_array(line_count);
   matrix = NULL;
   row = 0;
-  while (TRUE) {
+  while (true) {
     for (col = 0; col < line_count; ++col) {
       read_num = read_number(grid, &offset, &newline, &num);
       if (is_pspm && (num < 0 || num > 1)) {
@@ -432,7 +432,7 @@ static void set_motif_width_from_params(CTX_T *parser, RBTREE_T *kv_pairs,
               "which is invalid as it is not larger than zero.\n", 
               type, name, width);
         } else {
-          parser->mscope.has_width = TRUE;
+          parser->mscope.has_width = true;
           parser->mscope.motif->length =  width;
         }
       }
@@ -476,7 +476,7 @@ static void set_motif_sites_from_params(CTX_T *parser, RBTREE_T *kv_pairs,
               "which is invalid as it is smaller than zero.\n", type, 
               name, sites);
         } else {
-          parser->mscope.has_sites = TRUE;
+          parser->mscope.has_sites = true;
           parser->mscope.motif->num_sites = sites;
         }
       }
@@ -507,7 +507,7 @@ static void set_motif_evalue_from_params(CTX_T *parser, RBTREE_T *kv_pairs,
               type, name, pow(10.0, log10_evalue), get_motif_evalue(parser->mscope.motif));
         }
       } else {
-        parser->mscope.has_evalue = TRUE;
+        parser->mscope.has_evalue = true;
         parser->mscope.motif->log_evalue = log10_evalue;
         parser->mscope.motif->evalue = pow(10.0, log10_evalue);
       }
@@ -676,7 +676,7 @@ void meme_combinedblock(CTX_T *ctx, const char *combinedblock) {
   double seq_log10_pvalue, site_log10_pvalue;
   int i, seq_length, seq_count, site_motif_num, site_position;
   SCANNED_SEQ_T *sseq;
-  BOOLEAN_T sites_ok;
+  bool sites_ok;
 
   if (ctx->fscope.scanned_sites) {
     html_error(ctx, "Duplicate scanned sites.\n");
@@ -687,7 +687,7 @@ void meme_combinedblock(CTX_T *ctx, const char *combinedblock) {
     ctx->fscope.scanned_sites = arraylst_create();
   }
 
-  sites_ok = TRUE;
+  sites_ok = true;
   scanned_seq = combinedblock;
   while (regexec_or_die("scanned seq", &(ctx->re.scanned_seq), scanned_seq, 8, matches, 0)) {
     seq_name = regex_str(matches+2, scanned_seq);
@@ -717,7 +717,7 @@ void meme_combinedblock(CTX_T *ctx, const char *combinedblock) {
       } else { // site missing!
         html_error(ctx, "Too few scanned sequence sites for sequence %s. "
             "Expected %d but only found %d.\n", seq_name, seq_count, i);
-        sites_ok = FALSE;
+        sites_ok = false;
         break;
       }
     }
@@ -757,7 +757,7 @@ void meme_motif_intro(CTX_T *ctx, const char *intro) {
     // DREME html motifs don't have this section so we assume it's MEME
     set_motif_id2("MEME", 4, ctx->mscope.motif);
     set_motif_strand('+', ctx->mscope.motif);
-    ctx->mscope.has_name = TRUE;
+    ctx->mscope.has_name = true;
   } else {
     html_error(ctx, "Could not parse motif intro \"%s\".\n", intro);
   }
@@ -771,7 +771,7 @@ void meme_motif_name(CTX_T *ctx, const char *motif_name) {
   // MEME html motifs don't have this section so we assume it's DREME
   set_motif_id2("DREME", 5, ctx->mscope.motif);
   set_motif_strand('+', ctx->mscope.motif);
-  ctx->mscope.has_name = TRUE;
+  ctx->mscope.has_name = true;
 }
 
 
@@ -789,7 +789,7 @@ void meme_motif_pssm(CTX_T *ctx, const char *pssm) {
     html_error(ctx, "Duplicate PSSM of motif %s\n", name);
     return;
   }
-  ctx->mscope.has_pssm = TRUE;
+  ctx->mscope.has_pssm = true;
    
   if (!regexec_or_die("PSSM", &(ctx->re.log_odds), pssm, 2, matches, 0)) {
     html_error(ctx, "Couldn't parse PSSM of motif %s.\n", name);
@@ -802,7 +802,7 @@ void meme_motif_pssm(CTX_T *ctx, const char *pssm) {
   set_motif_params(ctx, kvpairs, "pssm", "alength", "w", "nsites", "E");
   rbtree_destroy(kvpairs);
 
-  read_grid(ctx, FALSE, pssm+(matches[1].rm_eo));
+  read_grid(ctx, false, pssm+(matches[1].rm_eo));
 }
 
 /*****************************************************************************
@@ -819,7 +819,7 @@ void meme_motif_pspm(CTX_T *ctx, const char *pspm) {
     html_error(ctx, "Duplicate PSPM of motif %s\n", name);
     return;
   }
-  ctx->mscope.has_pspm = TRUE;
+  ctx->mscope.has_pspm = true;
    
   if (!regexec_or_die("PSPM", &(ctx->re.letter_prob), pspm, 2, matches, 0)) {
     html_error(ctx, "Couldn't parse PSPM of motif %s.\n", name);
@@ -832,7 +832,7 @@ void meme_motif_pspm(CTX_T *ctx, const char *pspm) {
   set_motif_params(ctx, kvpairs, "pssm", "alength", "w", "nsites", "E");
   rbtree_destroy(kvpairs);
 
-  read_grid(ctx, TRUE, pspm+(matches[1].rm_eo));
+  read_grid(ctx, true, pspm+(matches[1].rm_eo));
 }
 
 /*****************************************************************************
@@ -1009,13 +1009,13 @@ int mhtml_get_strands(void *data) {
   return parser->data->fscope.strands;
 }
 
-BOOLEAN_T mhtml_get_bg(void *data, ARRAY_T **bg) {
+bool mhtml_get_bg(void *data, ARRAY_T **bg) {
   MHTML_T *parser;
   parser = (MHTML_T*)data;
-  if (parser->data->fscope.background == NULL) return FALSE;
+  if (parser->data->fscope.background == NULL) return false;
   *bg = resize_array(*bg, get_array_length(parser->data->fscope.background));
   copy_array(parser->data->fscope.background, *bg);
-  return TRUE;
+  return true;
 }
 
 void* mhtml_motif_optional(void *data, int option) {
@@ -1029,7 +1029,7 @@ void* mhtml_motif_optional(void *data, int option) {
   if (parser->data->out->options_found & option) {
     if (parser->data->out->options_returned & option) {
       die("Sorry, optional values are only returned once. "
-          "This is because we can not guarantee that the "
+          "This is because we cannot guarantee that the "
           "previous caller did not deallocate the memory. "
           "Hence this is a feature to avoid memory bugs.\n");
       return NULL;
@@ -1059,7 +1059,7 @@ void* mhtml_file_optional(void *data, int option) {
   if (parser->data->fscope.options_found & option) {
     if (parser->data->fscope.options_returned & option) {
       die("Sorry, optional values are only returned once. "
-          "This is because we can not guarantee that the "
+          "This is because we cannot guarantee that the "
           "previous caller did not deallocate the memory. "
           "Hence this is a feature to avoid memory bugs.\n");
       return NULL;

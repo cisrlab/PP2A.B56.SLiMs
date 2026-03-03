@@ -343,6 +343,6 @@ void buildmessage(const char * arg) {
 		if (strlen(arg) >= MAX_ARG_LENGTH) {
 			message[MAX_ARG_LENGTH] = 0;
 		}
-		strncat(message, " is ", 4);
+		strcat(message, " is ");
 		strncat(message, error_messages[error], MAX_MSG_LENGTH);
 }

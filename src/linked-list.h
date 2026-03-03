@@ -15,7 +15,7 @@
  * Types
  */
 typedef struct linklst_t LINKLST_T;
-typedef struct link_t LINK_T;
+typedef struct link_t LL_LINK_T;
 
 
 /*
@@ -53,31 +53,31 @@ int linklst_size(LINKLST_T *linklst);
  * linklst_first
  * gets the first link
  */
-LINK_T *linklst_first(LINKLST_T *linklst);
+LL_LINK_T *linklst_first(LINKLST_T *linklst);
 
 /*
  * linklst_last
  * gets the last link
  */
-LINK_T *linklst_last(LINKLST_T *linklst);
+LL_LINK_T *linklst_last(LINKLST_T *linklst);
 
 /*
  * linklst_add_after
  * adds an item after the specified link
  */
-LINK_T *linklst_add_after(void *item, LINK_T *before, LINKLST_T *linklst);
+LL_LINK_T *linklst_add_after(void *item, LL_LINK_T *before, LINKLST_T *linklst);
 
 /*
  * linklst_add_before
  * adds an item before the specified link
  */
-LINK_T *linklst_add_before(void *item, LINK_T *after, LINKLST_T *linklst);
+LL_LINK_T *linklst_add_before(void *item, LL_LINK_T *after, LINKLST_T *linklst);
 
 /*
  * linklst_add
  * adds an item at the end of the list
  */
-LINK_T *linklst_add(void *item, LINKLST_T *linklst);
+LL_LINK_T *linklst_add(void *item, LINKLST_T *linklst);
 
 /*
  * Add the elements in the second list to the first list
@@ -102,7 +102,7 @@ void *linklst_take(LINKLST_T *linklst);
  * linklst_push
  * adds an item to the front of the list
  */
-LINK_T *linklst_push(void *item, LINKLST_T *linklst);
+LL_LINK_T *linklst_push(void *item, LINKLST_T *linklst);
 
 /*
  * linklst_pop
@@ -121,7 +121,7 @@ void *linklst_peek(LINKLST_T *linklst);
  * removes the passed link from the list
  * and returns a pointer to the item.
  */
-void *linklst_remove(LINK_T *link, LINKLST_T *linklst);
+void *linklst_remove(LL_LINK_T *link, LINKLST_T *linklst);
 
 /*
  * linklst_sort
@@ -134,25 +134,25 @@ void linklst_sort(int (*comparator)(void*,void*), LINKLST_T *linklst);
  * linklst_next
  * gets the next link
  */
-LINK_T *linklst_next(LINK_T *link);
+LL_LINK_T *linklst_next(LL_LINK_T *link);
 
 /*
  * linklst_prev
  * gets the previous link
  */
-LINK_T *linklst_prev(LINK_T *link);
+LL_LINK_T *linklst_prev(LL_LINK_T *link);
 
 /*
  * linklst_get
  * gets the item contained in the link
  */
-void *linklst_get(LINK_T *link);
+void *linklst_get(LL_LINK_T *link);
 
 /*
  * linklst_set
  * sets the item contained in the link
  */
-void linklst_set(void *item, LINK_T *link);
+void linklst_set(void *item, LL_LINK_T *link);
 
 #endif
 

@@ -19,7 +19,7 @@ char *dp_align(
   uint8_t *eseq, // integer encoded sequence 
   double wg, // gap cost (initialization)  
   double ws, // space cost (extension)  
-  BOOLEAN endgaps // penalize end gaps if TRUE 
+  bool endgaps // penalize end gaps if true 
 );
 
 char **dp_multi_align(

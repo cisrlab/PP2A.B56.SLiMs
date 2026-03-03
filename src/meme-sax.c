@@ -1,4 +1,3 @@
-
 #include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -21,7 +20,6 @@
 #define ES_ONE_OR_MORE 3
 #define ES_ANY 4
 
-
 /*****************************************************************************
  * Parser State Constants 
  ****************************************************************************/
@@ -43,6 +41,7 @@ enum parser_state {
   PS_IN_NMOTIFS,
   PS_IN_EVALUE_THRESHOLD,
   PS_IN_OBJECT_FUNCTION,
+  PS_IN_SPFUN,
   PS_IN_USE_LLR,
   PS_IN_MIN_WIDTH,
   PS_IN_MAX_WIDTH,
@@ -50,6 +49,7 @@ enum parser_state {
   PS_IN_WG,
   PS_IN_WS,
   PS_IN_ENDGAPS,
+  PS_IN_SUBSTRING,
   PS_IN_MINSITES,
   PS_IN_MAXSITES,
   PS_IN_WNSITES,
@@ -64,11 +64,18 @@ enum parser_state {
   PS_IN_NUM_POSITIONS,
   PS_IN_SEED,
   PS_IN_SEQFRAC,
-  PS_IN_CTFRAC,
+  PS_IN_HSFRAC,
+  PS_IN_SEARCHSIZE,
   PS_IN_MAXWORDS,
+  PS_IN_MAXSIZE,
+  PS_IN_NORAND,
+  PS_IN_CSITES,
   PS_IN_STRANDS,
+  PS_IN_BRIEF,
+  PS_IN_PSP_FILE,
   PS_IN_PRIORS_FILE,
   PS_IN_REASON_FOR_STOPPING,
+  PS_IN_BACK_ORDER,
   PS_IN_BACKGROUND_FREQUENCIES,
   PS_IN_MOTIF,
   PS_IN_SCANNED_SITES,
@@ -94,7 +101,6 @@ enum parser_state {
   PS_IN_SC_AM_AA_VALUE,
   PS_IN_PR_AM_AA_VALUE,
   PS_IN_LETTER_REF,
-  PS_IN_SUBSTRING,
   PS_END
 };
 typedef enum parser_state PS_EN;
@@ -120,12 +126,15 @@ static char const * const state_names[] = {
   "IN_NMOTIFS",
   "IN_EVALUE_THRESHOLD",
   "IN_OBJECT_FUNCTION",
+  "IN_SPFUN",
+  "IN_USE_LLR",
   "IN_MIN_WIDTH",
   "IN_MAX_WIDTH",
   "IN_MINIC",
   "IN_WG",
   "IN_WS",
   "IN_ENDGAPS",
+  "IN_SUBSTRING",
   "IN_MINSITES",
   "IN_MAXSITES",
   "IN_WNSITES",
@@ -137,12 +146,21 @@ static char const * const state_names[] = {
   "IN_MAXITER",
   "IN_DISTANCE",
   "IN_NUM_SEQUENCES",
-  "IN_SUM_POSITIONS",
+  "IN_NUM_POSITIONS",
   "IN_SEED",
   "IN_SEQFRAC",
+  "IN_HSFRAC",
+  "IN_SEARCHSIZE",
+  "IN_MAXWORDS",
+  "IN_MAXSIZE",
+  "IN_NORAND",
+  "IN_CSITES",
   "IN_STRANDS",
+  "IN_BRIEF", 
+  "IN_PSP_FILE",
   "IN_PRIORS_FILE",
   "IN_REASON_FOR_STOPPING",
+  "IN_BACK_ORDER",
   "IN_BACKGROUND_FREQUENCIES",
   "IN_MOTIF",
   "IN_SCANNED_SITES",
@@ -168,7 +186,6 @@ static char const * const state_names[] = {
   "IN_SC_AM_AA_VALUE",
   "IN_PR_AM_AA_VALUE",
   "IN_LETTER_REF",
-  "IN_SUBSTRING",
   "END"
 };
 
@@ -261,7 +278,7 @@ int meme_update_es(PS_T *ps, PS_EN next_state) {
       case ES_ONE_OR_MORE:
         if (old_es.found < 1) {
           error(ps, "Expected state %s not found!\n", state_names[old_es.state]);
-          return FALSE;
+          return false;
         }
     }
   }
@@ -273,16 +290,16 @@ int meme_update_es(PS_T *ps, PS_EN next_state) {
       case ES_ZERO_OR_ONE:
         if (es->found > 1) {
           error(ps, "Expected state %s only once!\n", state_names[es->state]);
-          return FALSE;
+          return false;
         }
       default:
         break;
     }
   } else {
     error(ps, "The state %s was not expected!\n", state_names[next_state]);
-    return FALSE;
+    return false;
   }
-  return TRUE;
+  return true;
 }
 
 /*****************************************************************************
@@ -295,8 +312,8 @@ static void start_ele_meme(PS_T *ps, const xmlChar **attrs) {
   char* names[2] = {"release", "version"};
   int (*parsers[2])(char*, void*) = {ld_str, ld_version};
   void *data[2] = {&release, &ver};
-  BOOLEAN_T required[2] = {TRUE, TRUE};
-  BOOLEAN_T done[2];
+  bool required[2] = {true, true};
+  bool done[2];
 
   parse_attributes(meme_attr_parse_error, ps, "meme", attrs, 2, names, parsers, data, required, done);
   
@@ -322,22 +339,48 @@ static void end_ele_meme(PS_T *ps) {
  * MEME > training_set
  ****************************************************************************/
 static void start_ele_training_set(PS_T *ps, const xmlChar **attrs) {
-  char *datafile;
-  int length;
+  char *primary_sequences;
+  int primary_count;
+  int primary_positions;
+  char *control_sequences;
+  int control_count;
 
-  char* names[2] = {"datafile", "length"};
-  int (*parsers[2])(char*, void*) = {ld_str, ld_int};
-  void *data[2] = {&datafile, &length};
-  BOOLEAN_T required[2] = {TRUE, TRUE};
-  BOOLEAN_T done[2];
+  //
+  // Handle both the old and new MEME formats.
+  //
+  // Attributes must be listed alphabetically.
+  char* names[7] = {
+    "control_count",		// new MEME format 4-Aug-2017
+    "control_sequences",	// new MEME format 4-Aug-2017
+    "datafile",			// old name for primary_sequences
+    "length",			// old name for primary_count
+    "primary_count",
+    "primary_positions",
+    "primary_sequences"
+  };
+  int (*parsers[7])(char*, void*) = {ld_int, ld_str, ld_str, ld_int, ld_int, ld_int, ld_str};
+  void *data[7] = {&control_count, &control_sequences, &primary_sequences, &primary_count, &primary_count, &primary_positions, &primary_sequences};
+  bool required[7] = {false, false, false, false, false, false, false};
+  bool done[7];
 
-  parse_attributes(meme_attr_parse_error, ps, "training_set", attrs, 2, names, parsers, data, required, done);
-  
+  parse_attributes(meme_attr_parse_error, ps, "training_set", attrs, 7, names, parsers, data, required, done);
+
+  // Handle the missing fields in the old MEME format.
+  if (! done[0]) control_count = 0;
+  if (! done[1]) control_sequences = "--none--";
+  if (! done[5]) primary_positions = 0;
+
+  // Handle the different names for primary_sequences and primary_count and primary_positions in the old format.
+  //   primary_sequences missing?
+  if (! (done[2] || done[6])) meme_attr_parse_error(ps, PARSE_ATTR_MISSING, "training_set", names[6], NULL);
+  //   primary_count missing?
+  if (! (done[3] || done[4])) meme_attr_parse_error(ps, PARSE_ATTR_MISSING, "training_set", names[4], NULL);
+
   if (ps->callbacks->start_training_set && ps->state != PS_ERROR) {
-    ps->callbacks->start_training_set(ps->user_data, datafile, length);
+    ps->callbacks->start_training_set(ps->user_data, primary_sequences, primary_count, primary_positions);
   }
   meme_push_es(ps, PS_IN_LETTER_FREQUENCIES, ES_ONCE);
-  meme_push_es(ps, PS_IN_SEQUENCE, ES_ONE_OR_MORE);
+  meme_push_es(ps, PS_IN_SEQUENCE, ES_ANY);		// Allow to be missing if -brief
   meme_push_es(ps, PS_IN_AMBIGS, ES_ZERO_OR_ONE);
   meme_push_es(ps, PS_IN_ALPHABET, ES_ONCE);
 }
@@ -359,33 +402,41 @@ static void start_ele_model(PS_T *ps, const xmlChar **attrs) {
     ps->callbacks->start_model(ps->user_data);
   }
   meme_push_es(ps, PS_IN_BACKGROUND_FREQUENCIES, ES_ONCE);
+  meme_push_es(ps, PS_IN_BACK_ORDER, ES_ZERO_OR_ONE);	// not present in new format 4-Aug-2017
   meme_push_es(ps, PS_IN_REASON_FOR_STOPPING, ES_ONCE);
   meme_push_es(ps, PS_IN_PRIORS_FILE, ES_ONCE);
+  meme_push_es(ps, PS_IN_PSP_FILE, ES_ZERO_OR_ONE);	// not present in old format 4-Aug-2017
+  meme_push_es(ps, PS_IN_BRIEF, ES_ZERO_OR_ONE);	// not present in old format 4-Aug-2017
   meme_push_es(ps, PS_IN_STRANDS, ES_ONCE);
-  meme_push_es(ps, PS_IN_MAXWORDS, ES_ZERO_OR_ONE);
-  meme_push_es(ps, PS_IN_CTFRAC, ES_ZERO_OR_ONE);
-  meme_push_es(ps, PS_IN_SEQFRAC, ES_ZERO_OR_ONE);
+  meme_push_es(ps, PS_IN_MAXWORDS, ES_ZERO_OR_ONE);	// removed in Version 5.0
+  meme_push_es(ps, PS_IN_CSITES, ES_ZERO_OR_ONE);
+  meme_push_es(ps, PS_IN_NORAND, ES_ZERO_OR_ONE);
+  meme_push_es(ps, PS_IN_MAXSIZE, ES_ZERO_OR_ONE);
+  meme_push_es(ps, PS_IN_SEARCHSIZE, ES_ZERO_OR_ONE);
+  meme_push_es(ps, PS_IN_HSFRAC, ES_ZERO_OR_ONE);
+  meme_push_es(ps, PS_IN_SEQFRAC, ES_ZERO_OR_ONE);	// not present in new format 4-Aug-2017
   meme_push_es(ps, PS_IN_SEED, ES_ONCE);
   meme_push_es(ps, PS_IN_NUM_POSITIONS, ES_ONCE);
-  meme_push_es(ps, PS_IN_NUM_SEQUENCES, ES_ONCE);
+  meme_push_es(ps, PS_IN_NUM_SEQUENCES, ES_ZERO_OR_ONE); // not present in new format 4-Aug-2017
   meme_push_es(ps, PS_IN_DISTANCE, ES_ONCE);
   meme_push_es(ps, PS_IN_MAXITER, ES_ONCE);
   meme_push_es(ps, PS_IN_BETA, ES_ONCE);
   meme_push_es(ps, PS_IN_PRIOR, ES_ONCE);
   meme_push_es(ps, PS_IN_SPFUZZ, ES_ONCE);
   meme_push_es(ps, PS_IN_SPMAP, ES_ONCE);
-  meme_push_es(ps, PS_IN_PROB, ES_ZERO_OR_ONE);
+  meme_push_es(ps, PS_IN_PROB, ES_ZERO_OR_ONE);		// not present in new format
   meme_push_es(ps, PS_IN_WNSITES, ES_ONCE);
   meme_push_es(ps, PS_IN_MAXSITES, ES_ONCE);
   meme_push_es(ps, PS_IN_MINSITES, ES_ONCE);
   meme_push_es(ps, PS_IN_SUBSTRING, ES_ZERO_OR_ONE);
-  meme_push_es(ps, PS_IN_ENDGAPS, ES_ONCE);
-  meme_push_es(ps, PS_IN_WS, ES_ONCE);
-  meme_push_es(ps, PS_IN_WG, ES_ONCE);
-  meme_push_es(ps, PS_IN_MINIC, ES_ZERO_OR_ONE);
+  meme_push_es(ps, PS_IN_ENDGAPS, ES_ZERO_OR_ONE);	// optional now 23-Oct-2017
+  meme_push_es(ps, PS_IN_WS, ES_ZERO_OR_ONE);		// optional now 23-Oct-2017
+  meme_push_es(ps, PS_IN_WG, ES_ZERO_OR_ONE);		// optional now 23-Oct-2017
+  meme_push_es(ps, PS_IN_MINIC, ES_ZERO_OR_ONE);	// not present in new format 4-Aug-2017
   meme_push_es(ps, PS_IN_MAX_WIDTH, ES_ONCE);
   meme_push_es(ps, PS_IN_MIN_WIDTH, ES_ONCE);
-  meme_push_es(ps, PS_IN_USE_LLR, ES_ZERO_OR_ONE); // new
+  meme_push_es(ps, PS_IN_USE_LLR, ES_ZERO_OR_ONE);	// not present in new format 4-Aug-2017
+  meme_push_es(ps, PS_IN_SPFUN, ES_ZERO_OR_ONE);	// not present in old format 4-Aug-2017 
   meme_push_es(ps, PS_IN_OBJECT_FUNCTION, ES_ONCE);
   meme_push_es(ps, PS_IN_EVALUE_THRESHOLD, ES_ONCE);
   meme_push_es(ps, PS_IN_NMOTIFS, ES_ONCE);
@@ -431,8 +482,8 @@ static void start_ele_scanned_sites_summary(PS_T *ps, const xmlChar **attrs) {
   char* names[1] = {"p_thresh"};
   int (*parsers[1])(char*, void*) = {ld_double};
   void *data[1] = {&p_thresh};
-  BOOLEAN_T required[1] = {TRUE};
-  BOOLEAN_T done[1];
+  bool required[1] = {true};
+  bool done[1];
 
   parse_attributes(meme_attr_parse_error, ps, "scanned_sites_summary", attrs, 1, names, parsers, data, required, done);
 
@@ -469,8 +520,8 @@ static void start_ele_alphabet(PS_T *ps, const xmlChar **attrs) {
   char* names[4] = {"id", "length", "like", "name"};
   int (*parsers[4])(char*, void*) = {ld_multi, ld_int, ld_multi, ld_str};
   void *data[4] = {&type_multi, &length, &extends_multi, &name};
-  BOOLEAN_T required[4] = {FALSE, FALSE, FALSE, FALSE};
-  BOOLEAN_T done[4];
+  bool required[4] = {false, false, false, false};
+  bool done[4];
 
   // defaults
   type = MEME_IO_XML_ALPH_CUSTOM;
@@ -549,8 +600,8 @@ static void start_ele_sequence(PS_T *ps, const xmlChar **attrs) {
   char* names[4] = {"id", "length", "name", "weight"};
   int (*parsers[4])(char*, void*) = {ld_str, ld_int, ld_str, ld_double};
   void *data[4] = {&id, &length, &name, &weight};
-  BOOLEAN_T required[4] = {TRUE, TRUE, TRUE, TRUE};
-  BOOLEAN_T done[4];
+  bool required[4] = {true, true, true, true};
+  bool done[4];
 
   parse_attributes(meme_attr_parse_error, ps, "sequence", attrs, 4, names, parsers, data, required, done);
 
@@ -648,15 +699,24 @@ static void end_ele_object_function(PS_T *ps) {
 }
 
 /*****************************************************************************
+ * MEME > model > /use_spfun
+ ****************************************************************************/
+static void end_ele_spfun(PS_T *ps) {
+  if (ps->callbacks->handle_spfun && ps->state != PS_ERROR) {
+    ps->callbacks->handle_spfun(ps->user_data, ps->characters.buffer);
+  }
+}
+
+/*****************************************************************************
  * MEME > model > /use_llr
  ****************************************************************************/
 static void end_ele_use_llr(PS_T *ps) {
-  int use_llr_val;
-  if (ld_int(ps->characters.buffer, &use_llr_val)) {
+  int use_llr;
+  if (ld_int(ps->characters.buffer, &use_llr)) {
     error(ps, "Couldn't parse use_llr from \"%s\"\n", ps->characters.buffer);
   }
   if (ps->callbacks->handle_use_llr && ps->state != PS_ERROR) {
-    ps->callbacks->handle_use_llr(ps->user_data, use_llr_val != 0);
+    ps->callbacks->handle_use_llr(ps->user_data, use_llr);
   }
 }
 
@@ -731,7 +791,7 @@ static void end_ele_ws(PS_T *ps) {
 static void end_ele_endgaps(PS_T *ps) {
   int use_endgaps;
   char* endgaps_options[2] = {"no", "yes"};
-  int endgaps_values[2] = {FALSE, TRUE}; 
+  int endgaps_values[2] = {false, true}; 
   MULTI_T endgaps_multi = {.count = 2, .options = endgaps_options, .outputs = endgaps_values, .target = &(use_endgaps)};
   if (ld_multi(ps->characters.buffer, &endgaps_multi)) {
     error(ps, "Couldn't parse endgaps from \"%s\"\n", ps->characters.buffer);
@@ -747,7 +807,7 @@ static void end_ele_endgaps(PS_T *ps) {
 static void end_ele_substring(PS_T *ps) {
   int use_substring;
   char* substring_options[2] = {"no", "yes"};
-  int substring_values[2] = {FALSE, TRUE}; 
+  int substring_values[2] = {false, true}; 
   MULTI_T substring_multi = {.count = 2, .options = substring_options, .outputs = substring_values, .target = &(use_substring)};
   if (ld_multi(ps->characters.buffer, &substring_multi)) {
     error(ps, "Couldn't parse substring from \"%s\"\n", ps->characters.buffer);
@@ -940,7 +1000,7 @@ static void end_ele_seed(PS_T *ps) {
 static void end_ele_seqfrac(PS_T *ps) {
   double seqfrac;
   if (ld_double(ps->characters.buffer, &seqfrac)) {
-    error(ps, "Couldn't parse seqfrac from \"%s\"\n", ps->characters.buffer);
+    error(ps, "Couldn't parse seed from \"%s\"\n", ps->characters.buffer);
   }
   if (ps->callbacks->handle_seqfrac && ps->state != PS_ERROR) {
     ps->callbacks->handle_seqfrac(ps->user_data, seqfrac);
@@ -948,20 +1008,30 @@ static void end_ele_seqfrac(PS_T *ps) {
 }
 
 /*****************************************************************************
- * MEME > model > /ctfrac
+ * MEME > model > /hsfrac
  ****************************************************************************/
-static void end_ele_ctfrac(PS_T *ps) {
-  double ctfrac;
-  if (ld_double(ps->characters.buffer, &ctfrac)) {
-    error(ps, "Couldn't parse ctfrac from \"%s\"\n", ps->characters.buffer);
+static void end_ele_hsfrac(PS_T *ps) {
+  double hsfrac;
+  if (ld_double(ps->characters.buffer, &hsfrac)) {
+    error(ps, "Couldn't parse hsfrac from \"%s\"\n", ps->characters.buffer);
   }
-  if (ps->callbacks->handle_ctfrac && ps->state != PS_ERROR) {
-    ps->callbacks->handle_ctfrac(ps->user_data, ctfrac);
+  if (ps->callbacks->handle_hsfrac && ps->state != PS_ERROR) {
+    ps->callbacks->handle_hsfrac(ps->user_data, hsfrac);
+  }
+}
+
+/*****************************************************************************
+ * MEME > model > /norand
+ ****************************************************************************/
+static void end_ele_norand(PS_T *ps) {
+  if (ps->callbacks->handle_norand && ps->state != PS_ERROR) {
+    ps->callbacks->handle_norand(ps->user_data, ps->characters.buffer);
   }
 }
 
 /*****************************************************************************
  * MEME > model > /maxwords
+ * Ignored-- Allowed for backwards compatibility.
  ****************************************************************************/
 static void end_ele_maxwords(PS_T *ps) {
   double maxwords;
@@ -970,6 +1040,45 @@ static void end_ele_maxwords(PS_T *ps) {
   }
   if (ps->callbacks->handle_maxwords && ps->state != PS_ERROR) {
     ps->callbacks->handle_maxwords(ps->user_data, maxwords);
+  }
+}
+
+/*****************************************************************************
+ * MEME > model > /csites
+ ****************************************************************************/
+static void end_ele_csites(PS_T *ps) {
+  double csites;
+  if (ld_double(ps->characters.buffer, &csites)) {
+    error(ps, "Couldn't parse csites from \"%s\"\n", ps->characters.buffer);
+  }
+  if (ps->callbacks->handle_csites&& ps->state != PS_ERROR) {
+    ps->callbacks->handle_csites(ps->user_data, csites);
+  }
+}
+
+/*****************************************************************************
+ * MEME > model > /searchsize
+ ****************************************************************************/
+static void end_ele_searchsize(PS_T *ps) {
+  double searchsize;
+  if (ld_double(ps->characters.buffer, &searchsize)) {
+    error(ps, "Couldn't parse searchsize from \"%s\"\n", ps->characters.buffer);
+  }
+  if (ps->callbacks->handle_searchsize && ps->state != PS_ERROR) {
+    ps->callbacks->handle_searchsize(ps->user_data, searchsize);
+  }
+}
+
+/*****************************************************************************
+ * MEME > model > /maxsize
+ ****************************************************************************/
+static void end_ele_maxsize(PS_T *ps) {
+  double maxsize;
+  if (ld_double(ps->characters.buffer, &maxsize)) {
+    error(ps, "Couldn't parse maxsize from \"%s\"\n", ps->characters.buffer);
+  }
+  if (ps->callbacks->handle_maxsize && ps->state != PS_ERROR) {
+    ps->callbacks->handle_maxsize(ps->user_data, maxsize);
   }
 }
 
@@ -986,6 +1095,28 @@ static void end_ele_strands(PS_T *ps) {
   }
   if (ps->callbacks->handle_strands && ps->state != PS_ERROR) {
     ps->callbacks->handle_strands(ps->user_data, strands);
+  }
+}
+
+/*****************************************************************************
+ * MEME > model > /brief
+ ****************************************************************************/
+static void end_ele_brief(PS_T *ps) {
+  int brief;
+  if (ld_int(ps->characters.buffer, &brief)) {
+    error(ps, "Couldn't parse brief from \"%s\"\n", ps->characters.buffer);
+  }
+  if (ps->callbacks->handle_brief && ps->state != PS_ERROR) {
+    ps->callbacks->handle_brief(ps->user_data, brief);
+  }
+}
+
+/*****************************************************************************
+ * MEME > model > /psp_file
+ ****************************************************************************/
+static void end_ele_psp_file(PS_T *ps) {
+  if (ps->callbacks->handle_psp_file && ps->state != PS_ERROR) {
+    ps->callbacks->handle_psp_file(ps->user_data, ps->characters.buffer);
   }
 }
 
@@ -1008,6 +1139,19 @@ static void end_ele_reason_for_stopping(PS_T *ps) {
 }
 
 /*****************************************************************************
+ * MEME > model > /back_order
+ ****************************************************************************/
+static void end_ele_back_order(PS_T *ps) {
+  int back_order;
+  if (ld_int(ps->characters.buffer, &back_order)) {
+    error(ps, "Couldn't parse back_order from \"%s\"\n", ps->characters.buffer);
+  }
+  if (ps->callbacks->handle_back_order && ps->state != PS_ERROR) {
+    ps->callbacks->handle_back_order(ps->user_data, back_order);
+  }
+}
+
+/*****************************************************************************
  * MEME > model > background_frequencies
  ****************************************************************************/
 static void start_ele_background_frequencies(PS_T *ps, const xmlChar **attrs) {
@@ -1016,8 +1160,8 @@ static void start_ele_background_frequencies(PS_T *ps, const xmlChar **attrs) {
   char* names[1] = {"source"};
   int (*parsers[1])(char*, void*) = {ld_str};
   void *data[1] = {&bgsource};
-  BOOLEAN_T required[1] = {TRUE};
-  BOOLEAN_T done[1];
+  bool required[1] = {true};
+  bool done[1];
 
   parse_attributes(meme_attr_parse_error, ps, "background_frequencies", attrs, 1, names, parsers, data, required, done);
 
@@ -1040,28 +1184,30 @@ static void end_ele_background_frequencies(PS_T *ps) {
  * MEME > motifs > motif
  ****************************************************************************/
 static void start_ele_motif(PS_T *ps, const xmlChar **attrs) {
-  char *id, *name, *url;
+  char *id, *name, *url, *alt;
   int width, sites;
   double ic, re, llr, log10evalue, bayes_threshold, elapsed_time;
 
-  char* names[11] = {"bayes_threshold", "e_value", "elapsed_time", 
+  // !!! Note: The name list must be alphabetically ordered!!!
+  char* names[12] = {"alt", "bayes_threshold", "e_value", "elapsed_time", 
     "ic", "id", "llr", "name", "re", "sites", "url", "width"};
-  int (*parsers[11])(char*, void*) = {ld_double, ld_log10_ev, ld_double, 
+  int (*parsers[12])(char*, void*) = {ld_str, ld_double, ld_log10_ev, ld_double, 
     ld_double, ld_str, ld_double, ld_str, ld_double, ld_int, ld_str, ld_int};
-  void *data[11] = {&bayes_threshold, &log10evalue, &elapsed_time, 
+  void *data[12] = {&alt, &bayes_threshold, &log10evalue, &elapsed_time, 
     &ic, &id, &llr, &name, &re, &sites, &url, &width};
-  BOOLEAN_T required[11] = {TRUE, TRUE, TRUE, 
-    TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, TRUE};
-  BOOLEAN_T done[11];
+  bool required[12] = {false, true, true, true, 
+    true, true, true, true, true, true, false, true};
+  bool done[12];
 
-  // set url default
+  // set url & alt defaults
   url = "";
+  alt = "";
 
-  parse_attributes(meme_attr_parse_error, ps, "motif", attrs, 11, names, 
+  parse_attributes(meme_attr_parse_error, ps, "motif", attrs, 12, names, 
       parsers, data, required, done);
 
   if (ps->callbacks->start_motif && ps->state != PS_ERROR) {
-    ps->callbacks->start_motif(ps->user_data, id, name, width, sites, llr, ic, 
+    ps->callbacks->start_motif(ps->user_data, id, name, alt, width, sites, llr, ic, 
         re, bayes_threshold, log10evalue, elapsed_time, url);
   }
   meme_push_es(ps, PS_IN_CONTRIBUTING_SITES, ES_ONCE);
@@ -1090,8 +1236,8 @@ static void start_ele_scanned_sites(PS_T *ps, const xmlChar **attrs) {
   char* names[3] = {"num_sites", "pvalue", "sequence_id"};
   int (*parsers[3])(char*, void*) = {ld_int, ld_log10_pv, ld_str};
   void *data[3] = {&num_sites, &log10pvalue, &sequence_id};
-  BOOLEAN_T required[3] = {TRUE, TRUE, TRUE};
-  BOOLEAN_T done[3];
+  bool required[3] = {true, true, true};
+  bool done[3];
 
   parse_attributes(meme_attr_parse_error, ps, "scanned_sites", attrs, 3, names, parsers, data, required, done);
 
@@ -1120,8 +1266,8 @@ static void start_ele_alphabet_letter(PS_T *ps, const xmlChar **attrs) {
   char* names[7] = {"aliases", "colour", "complement", "equals", "id", "name", "symbol"};
   int (*parsers[7])(char*, void*) = {ld_str, ld_hex, ld_char, ld_str, ld_str, ld_str, ld_char};
   void *data[7] = {&aliases, &colour, &complement, &equals, &id, &name, &symbol};
-  BOOLEAN_T required[7] = {FALSE, FALSE, FALSE, FALSE, TRUE, FALSE, TRUE};
-  BOOLEAN_T done[7];
+  bool required[7] = {false, false, false, false, true, false, true};
+  bool done[7];
 
   aliases = NULL;
   name = NULL;
@@ -1146,8 +1292,8 @@ static void start_ele_ambigs_letter(PS_T *ps, const xmlChar **attrs) {
   char* names[2] = {"id", "symbol"};
   int (*parsers[2])(char*, void*) = {ld_str, ld_char};
   void *data[2] = {&id, &symbol};
-  BOOLEAN_T required[2] = {TRUE, TRUE};
-  BOOLEAN_T done[2];
+  bool required[2] = {true, true};
+  bool done[2];
 
   parse_attributes(meme_attr_parse_error, ps, "letter", attrs, 2, names, parsers, data, required, done);
 
@@ -1248,7 +1394,7 @@ static void start_ele_contributing_sites(PS_T *ps, const xmlChar **attrs) {
   if (ps->callbacks->start_contributing_sites && ps->state != PS_ERROR) {
     ps->callbacks->start_contributing_sites(ps->user_data);
   }
-  meme_push_es(ps, PS_IN_CONTRIBUTING_SITE, ES_ONE_OR_MORE);
+  meme_push_es(ps, PS_IN_CONTRIBUTING_SITE, ES_ANY);	// allow to be missing if -brief
 }
 
 /*****************************************************************************
@@ -1276,8 +1422,8 @@ static void start_ele_scanned_site(PS_T *ps, const xmlChar **attrs) {
   char* names[4] = {"motif_id", "position", "pvalue", "strand"};
   int (*parsers[4])(char*, void*) = {ld_str, ld_int, ld_log10_pv, ld_multi};
   void *data[4] = {&motif_id, &position, &log10pvalue, &strand_multi};
-  BOOLEAN_T required[4] = {TRUE, TRUE, TRUE, FALSE};
-  BOOLEAN_T done[4];
+  bool required[4] = {true, true, true, false};
+  bool done[4];
 
   parse_attributes(meme_attr_parse_error, ps, "scanned_site", attrs, 4, names, parsers, data, required, done);
 
@@ -1299,8 +1445,8 @@ static void start_ele_value(PS_T *ps, const xmlChar **attrs) {
   char* names[1] = {"letter_id"};
   int (*parsers[1])(char*, void*) = {ld_str};
   void *data[1] = {&letter_id};
-  BOOLEAN_T required[1] = {TRUE};
-  BOOLEAN_T done[1];
+  bool required[1] = {true};
+  bool done[1];
 
   parse_attributes(meme_attr_parse_error, ps, "value", attrs, 1, names, parsers, data, required, done);
 
@@ -1393,8 +1539,8 @@ static void start_ele_contributing_site(PS_T *ps, const xmlChar **attrs) {
   char* names[4] = {"position", "pvalue", "sequence_id", "strand"};
   int (*parsers[4])(char*, void*) = {ld_int, ld_log10_pv, ld_str, ld_multi};
   void *data[4] = {&position, &log10pvalue, &sequence_id, &strand_multi};
-  BOOLEAN_T required[4] = {TRUE, TRUE, TRUE, FALSE};
-  BOOLEAN_T done[4];
+  bool required[4] = {true, true, true, false};
+  bool done[4];
 
   parse_attributes(meme_attr_parse_error, ps, "contributing_site", attrs, 4, names, parsers, data, required, done);
 
@@ -1528,8 +1674,8 @@ static void start_ele_letter_ref(PS_T *ps, const xmlChar **attrs) {
   char* names[1] = {"letter_id"};
   int (*parsers[1])(char*, void*) = {ld_str};
   void *data[1] = {&letter_id};
-  BOOLEAN_T required[1] = {TRUE};
-  BOOLEAN_T done[1];
+  bool required[1] = {true};
+  bool done[1];
 
   parse_attributes(meme_attr_parse_error, ps, "letter_ref", attrs, 1, names, parsers, data, required, done);
 
@@ -1608,6 +1754,15 @@ void handle_characters(void *ctx, const xmlChar *ch, int len) {
     break; \
   }
 
+#define CHECK_START_ELE_ALIAS(_expected_,_alias_,_transition_,_char_accept_) \
+  if (strcasecmp((char*)name, #_expected_ ) == 0 || strcasecmp((char*)name, #_alias_) == 0 ) { \
+    if (meme_update_es(ps, _transition_ )) { \
+      ps->state = _transition_; \
+      ps->characters.accept = _char_accept_; \
+    } \
+    break; \
+  }
+
 /*****************************************************************************
  * Handle a starting element.
  ****************************************************************************/
@@ -1649,10 +1804,11 @@ void handle_start_ele(void *ctx, const xmlChar *name, const xmlChar **attrs) {
         CHECK_START_ELE(nmotifs, PS_IN_NMOTIFS, ALL_BUT_SPACE);
         CHECK_START_ELE(evalue_threshold, PS_IN_EVALUE_THRESHOLD, ALL_BUT_SPACE);
         CHECK_START_ELE(object_function, PS_IN_OBJECT_FUNCTION, ALL_CHARS);
+        CHECK_START_ELE(spfun, PS_IN_SPFUN, ALL_CHARS);
         CHECK_START_ELE(use_llr, PS_IN_USE_LLR, ALL_BUT_SPACE);
         CHECK_START_ELE(min_width, PS_IN_MIN_WIDTH, ALL_BUT_SPACE);
         CHECK_START_ELE(max_width, PS_IN_MAX_WIDTH, ALL_BUT_SPACE);
-        CHECK_START_ELE(minic, PS_IN_MINIC, ALL_BUT_SPACE);
+	CHECK_START_ELE(minic, PS_IN_MINIC, ALL_BUT_SPACE);	// for meme_4.10.0
         CHECK_START_ELE(wg, PS_IN_WG, ALL_BUT_SPACE);
         CHECK_START_ELE(ws, PS_IN_WS, ALL_BUT_SPACE);
         CHECK_START_ELE(endgaps, PS_IN_ENDGAPS, ALL_BUT_SPACE);
@@ -1671,11 +1827,18 @@ void handle_start_ele(void *ctx, const xmlChar *name, const xmlChar **attrs) {
         CHECK_START_ELE(num_positions, PS_IN_NUM_POSITIONS, ALL_BUT_SPACE);
         CHECK_START_ELE(seed, PS_IN_SEED, ALL_BUT_SPACE);
         CHECK_START_ELE(seqfrac, PS_IN_SEQFRAC, ALL_BUT_SPACE);
-        CHECK_START_ELE(ctfrac, PS_IN_CTFRAC, ALL_BUT_SPACE);
+        CHECK_START_ELE_ALIAS(hsfrac, ctfrac, PS_IN_HSFRAC, ALL_BUT_SPACE);
+        CHECK_START_ELE(searchsize, PS_IN_SEARCHSIZE, ALL_BUT_SPACE);
+        CHECK_START_ELE(maxsize, PS_IN_MAXSIZE, ALL_BUT_SPACE);
+        CHECK_START_ELE(norand, PS_IN_NORAND, ALL_CHARS);
+        CHECK_START_ELE(csites, PS_IN_CSITES, ALL_BUT_SPACE);
         CHECK_START_ELE(maxwords, PS_IN_MAXWORDS, ALL_BUT_SPACE);
         CHECK_START_ELE(strands, PS_IN_STRANDS, ALL_BUT_SPACE);
+        CHECK_START_ELE(brief, PS_IN_BRIEF, ALL_BUT_SPACE);
+        CHECK_START_ELE(psp_file, PS_IN_PSP_FILE, ALL_CHARS);
         CHECK_START_ELE(priors_file, PS_IN_PRIORS_FILE, ALL_CHARS);
         CHECK_START_ELE(reason_for_stopping, PS_IN_REASON_FOR_STOPPING, ALL_CHARS);
+        CHECK_START_ELE(back_order, PS_IN_BACK_ORDER, ALL_BUT_SPACE);
         DO_START_ELE(background_frequencies, start_ele_background_frequencies, PS_IN_BACKGROUND_FREQUENCIES, IGNORE);
         known = 0;
         break;
@@ -1794,6 +1957,14 @@ void handle_start_ele(void *ctx, const xmlChar *name, const xmlChar **attrs) {
       if (ps->state == _state_) ps->state = _transition_; \
     } \
     break
+#define DO_END_ELE_ALIAS(_expected_,_alias_,_call_,_state_,_transition_) \
+  case _state_: \
+    if (strcasecmp((char*)name, #_expected_) == 0 || strcasecmp((char*)name, #_alias_) == 0) { \
+      known = 1; \
+      _call_ (ps); \
+      if (ps->state == _state_) ps->state = _transition_; \
+    } \
+    break
 #define CHECK_END_ELE(_expected_,_state_,_transition_) \
   case _state_: \
     if (strcasecmp((char*)name, #_expected_) == 0) { \
@@ -1833,6 +2004,7 @@ void handle_end_ele(void *ctx, const xmlChar *name) {
       DO_END_ELE(nmotifs, end_ele_nmotifs, PS_IN_NMOTIFS, PS_IN_MODEL);
       DO_END_ELE(evalue_threshold, end_ele_evalue_threshold, PS_IN_EVALUE_THRESHOLD, PS_IN_MODEL);
       DO_END_ELE(object_function, end_ele_object_function, PS_IN_OBJECT_FUNCTION, PS_IN_MODEL);
+      DO_END_ELE(spfun, end_ele_spfun, PS_IN_SPFUN, PS_IN_MODEL);
       DO_END_ELE(use_llr, end_ele_use_llr, PS_IN_USE_LLR, PS_IN_MODEL);
       DO_END_ELE(min_width, end_ele_min_width, PS_IN_MIN_WIDTH, PS_IN_MODEL);
       DO_END_ELE(max_width, end_ele_max_width, PS_IN_MAX_WIDTH, PS_IN_MODEL);
@@ -1855,11 +2027,18 @@ void handle_end_ele(void *ctx, const xmlChar *name) {
       DO_END_ELE(num_positions, end_ele_num_positions, PS_IN_NUM_POSITIONS, PS_IN_MODEL);
       DO_END_ELE(seed, end_ele_seed, PS_IN_SEED, PS_IN_MODEL);
       DO_END_ELE(seqfrac, end_ele_seqfrac, PS_IN_SEQFRAC, PS_IN_MODEL);
-      DO_END_ELE(ctfrac, end_ele_ctfrac, PS_IN_CTFRAC, PS_IN_MODEL);
+      DO_END_ELE_ALIAS(hsfrac, ctfrac, end_ele_hsfrac, PS_IN_HSFRAC, PS_IN_MODEL);
+      DO_END_ELE(searchsize, end_ele_searchsize, PS_IN_SEARCHSIZE, PS_IN_MODEL);
       DO_END_ELE(maxwords, end_ele_maxwords, PS_IN_MAXWORDS, PS_IN_MODEL);
+      DO_END_ELE(maxsize, end_ele_maxsize, PS_IN_MAXSIZE, PS_IN_MODEL);
+      DO_END_ELE(norand, end_ele_norand, PS_IN_NORAND, PS_IN_MODEL);
+      DO_END_ELE(csites, end_ele_csites, PS_IN_CSITES, PS_IN_MODEL);
       DO_END_ELE(strands, end_ele_strands, PS_IN_STRANDS, PS_IN_MODEL);
+      DO_END_ELE(brief, end_ele_brief, PS_IN_BRIEF, PS_IN_MODEL);
+      DO_END_ELE(psp_file, end_ele_psp_file, PS_IN_PSP_FILE, PS_IN_MODEL);
       DO_END_ELE(priors_file, end_ele_priors_file, PS_IN_PRIORS_FILE, PS_IN_MODEL);
       DO_END_ELE(reason_for_stopping, end_ele_reason_for_stopping, PS_IN_REASON_FOR_STOPPING, PS_IN_MODEL);
+      DO_END_ELE(back_order, end_ele_back_order, PS_IN_BACK_ORDER, PS_IN_MODEL);
       DO_END_ELE(background_frequencies, end_ele_background_frequencies, PS_IN_BACKGROUND_FREQUENCIES, PS_IN_MODEL);
       DO_END_ELE(motif, end_ele_motif, PS_IN_MOTIF, PS_IN_MOTIFS);
       DO_END_ELE(scanned_sites, end_ele_scanned_sites, PS_IN_SCANNED_SITES, PS_IN_SCANNED_SITES_SUMMARY);

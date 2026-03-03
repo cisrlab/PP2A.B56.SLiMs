@@ -1,4 +1,3 @@
-
 #include <assert.h>
 #include <string.h>
 
@@ -8,6 +7,7 @@
 #include "motif-in-meme-html.h"
 #include "motif-in-meme-json.h"
 #include "motif-in-meme-text.h"
+#include "motif-in-streme-xml.h"
 #include "motif-spec.h"
 #include "utils.h"
 
@@ -27,11 +27,12 @@ struct mread {
   MFORMAT_T *formats;         // The motif readers
   int valid;                  // The count of valid readers left
   int total;                  // The total readers left
-  BOOLEAN_T success;          // Has a reader returned a motif
+  bool success;          // Has a reader returned a motif
   FILE *fp;                   // Optional file to read from
   double trim_bits;           // Trim the motifs from the edges
-  BOOLEAN_T trim;             // Should the motif be trimmed
+  bool trim;             // Should the motif be trimmed?
   int count;                  // The current count of processed motifs
+  bool symmetrical;	      // Should the pseudocount background be made symmetrical if possible?
 };
 
 /*
@@ -40,7 +41,7 @@ struct mread {
 struct mformat {
   char *name;
   void *data;
-  BOOLEAN_T valid; // is the parser still valid
+  bool valid; // is the parser still valid
   void (*destroy)(void *data);
   void (*update)(void *data, const char *buffer, size_t size, short end);
   short (*match_score)(void *data); // larger number means better match
@@ -52,7 +53,7 @@ struct mformat {
   MOTIF_T* (*next_motif)(void *data);
   ALPH_T* (*get_alphabet)(void *data);
   int (*get_strands)(void *data);
-  BOOLEAN_T (*get_bg)(void *data, ARRAY_T **bg);
+  bool (*get_bg)(void *data, ARRAY_T **bg);
   void* (*motif_optional)(void *data, int option); // optional component at motif scope
   void* (*file_optional)(void *data, int option); // optional component at file scope
 };
@@ -85,7 +86,7 @@ void add_format(
   MOTIF_T* (*next_motif)(void *data),
   ALPH_T* (*get_alphabet)(void *data),
   int (*get_strands)(void *data),
-  BOOLEAN_T (*get_bg)(void *data, ARRAY_T **bg),
+  bool (*get_bg)(void *data, ARRAY_T **bg),
   void* (*motif_optional)(void *data, int option), // optional component at motif scope
   void* (*file_optional)(void *data, int option) // optional component at file scope
 ) {
@@ -97,7 +98,7 @@ void add_format(
 
   format->name = name;
   format->data = init(mread->filename, mread->options);
-  format->valid = TRUE;
+  format->valid = true;
   format->destroy = destroy;
   format->update = update;
   format->match_score = match_score;
@@ -118,33 +119,60 @@ void add_format(
  * Sets the background for the pseudo-counts
  * but requires the alphabet to do it.
  */
-static void set_pseudo_bg(MREAD_T *mread) {
-  ALPH_T* alph;
-  alph = mread->formats->get_alphabet(mread->formats->data);
+static void set_pseudo_bg(
+  MREAD_T *mread,
+  ALPH_T *alph
+) {
+  if (!alph) alph = mread->formats->get_alphabet(mread->formats->data);
   assert(alph != NULL);
   if (!mread->other_bg) {
     // no change to other_bg
-    if (mread->other_bg_src == NULL || 
-        strcmp(mread->other_bg_src, "--nrdb--") == 0) {
+    if (mread->other_bg_src == NULL) mread->other_bg_src = strdup("--nrdb--");
+    if (strcmp(mread->other_bg_src, "--nrdb--") == 0) {
+      // Note: get_nrdb_frequencies returns NULL if alph is not standard DNA or protein.
       mread->other_bg = get_nrdb_frequencies(alph, NULL);
     } else if (strcmp(mread->other_bg_src, "--uniform--") == 0) {
       mread->other_bg = get_uniform_frequencies(alph, NULL);
-    } else if (strcmp(mread->other_bg_src, "--motif--") == 0 || 
-        strcmp(mread->other_bg_src, "motif-file") == 0) {
+    } else if (strcmp(mread->other_bg_src, "--motif--") == 0 
+      || strcmp(mread->other_bg_src, "motif-file") == 0
+      || strcmp(mread->other_bg_src, "--query--") == 0) {
       // motif_bg is loaded elsewhere
     } else {
-      mread->other_bg = get_file_frequencies(alph, mread->other_bg_src);
+      int order = 0;
+      char *bg_syms = NULL;
+      mread->other_bg = load_markov_model_without_alph(mread->other_bg_src, &order, &bg_syms); 
+      // check that the symbols in the background model match those in the alphabet
+      STR_T *alph_letters_string = str_create(100);
+      const char *alph_syms = alph_string(alph, alph_letters_string);
+      if (strcmp(alph_syms, bg_syms) != 0) {
+        die("Error: The symbols in background file (%s) don't match those in the alphabet (%s).\n", bg_syms, alph_syms);
+      }
+      str_destroy(alph_letters_string, false);
+      free(bg_syms);
     }
   }
-  if (mread->other_bg) mread->pseudo_bg = mread->other_bg;
-  else mread->pseudo_bg = mread->motif_bg;
-}
-
+  if (mread->other_bg) {
+    mread->pseudo_bg = mread->other_bg;
+  } else {
+    // other_bg wasn't set yet above.
+    // Can't use NRDB, so use background in motif.
+    if (mread->other_bg_src) free(mread->other_bg_src);
+    mread->other_bg_src = strdup("--motif--");
+    mread->pseudo_bg = mread->motif_bg;
+  }
+  // TLB 26-Jul-2017; Make symmetrical if scanning both strands
+  if (alph_has_complement(alph) && mread->symmetrical) 
+    average_freq_with_complement(alph, mread->pseudo_bg);
+  // TLB 8-Feb-2017; Make sure the background doesn't have any zeros.
+  normalize_frequencies(mread->conv_alph ? mread->conv_alph : alph, mread->pseudo_bg, 0.0000005);
+} // set_pseudo_bg
 
 /*
  * When the parser has been selected do some processing
  */
-static void parser_selected(MREAD_T *mread) {
+static void parser_selected(
+  MREAD_T *mread
+) {
   ALPH_T* alph;
   MFORMAT_T* format;
   format = mread->formats;
@@ -156,7 +184,7 @@ static void parser_selected(MREAD_T *mread) {
   } else {
     mread->motif_bg = get_uniform_frequencies(alph, mread->motif_bg);
   }
-  set_pseudo_bg(mread);
+  set_pseudo_bg(mread, alph);
 }
 
 /*
@@ -164,14 +192,19 @@ static void parser_selected(MREAD_T *mread) {
  * if an error occurs or the parser produces a motif
  * and is selected.
  */
-static void update_parser(MREAD_T *mread, MFORMAT_T *format,  
-  const char *buffer, size_t size, short end) {
+static void update_parser(
+  MREAD_T *mread, 
+  MFORMAT_T *format,  
+  const char *buffer, 
+  size_t size, 
+  short end
+) {
   // update the parser
   format->update(format->data, buffer, size, end);
   // reorganise the parser list
   if (format->has_error(format->data)) {
     // error occurred! parser not valid
-    format->valid = FALSE;
+    format->valid = false;
     if (format != mread->formats+(mread->valid - 1)) {
       // not the last valid in the list so we have to swap
       MFORMAT_T temp;
@@ -191,10 +224,10 @@ static void update_parser(MREAD_T *mread, MFORMAT_T *format,
       mread->formats[0] = temp;
     }
     mread->valid = 1;
-    mread->success = TRUE;
+    mread->success = true;
     parser_selected(mread);
   }
-}
+} // update_parser
 
 /*
  * loop through all the warnings in the format
@@ -293,11 +326,12 @@ static MOTIF_T* post_process_motif(MREAD_T *mread, MOTIF_T *motif) {
   } else if (motif->scores != NULL) {
     // calculate the freqs
     motif->freqs = convert_scores_into_freqs(motif->alph, motif->scores, 
-        mread->motif_bg, site_count, PSEUDO);
+      mread->motif_bg, site_count, PSEUDO);
   } else if (motif->freqs != NULL) {
     // calculate the scores
     motif->scores = convert_freqs_into_scores(motif->alph, motif->freqs,
-        mread->motif_bg, site_count, PSEUDO);
+      //mread->motif_bg, site_count, PSEUDO);  // this is always from the motif, ignoring bfile
+      mread->pseudo_bg, site_count, PSEUDO); 	// TLB changed 1-Feb-2017 so -bfile affects scores for MAST
   } else {
     die("Motif with no PSPM or PSSM should not get here!\n");
   }
@@ -311,22 +345,34 @@ static MOTIF_T* post_process_motif(MREAD_T *mread, MOTIF_T *motif) {
     free_matrix(motif->scores);
     // can't use motif_bg here because it is for the old alphabet
     motif->scores = convert_freqs_into_scores(motif->alph, motif->freqs,
-        mread->pseudo_bg, site_count, PSEUDO);
+      mread->pseudo_bg, site_count, PSEUDO);
   }
   apply_pseudocount_to_motif(motif, mread->pseudo_bg, mread->pseudo_total);
   motif->complexity = compute_motif_complexity(motif);
   motif->idx = ++(mread->count);
   if (mread->options & CALC_AMBIGS) calc_motif_ambigs(motif);
   if (mread->trim) trim_motif_by_bit_threshold(motif, mread->trim_bits);
+
+  // Compute a single-letter consensus for the motif.
+  STR_T *cons_buf = str_create(50);
+  str_clear(cons_buf);
+  motif2consensus(motif, cons_buf, true);
+  motif->consensus = str_internal(cons_buf);
+  free(cons_buf);
+
   return motif;
-}
+} // post_process_motif
 
 /*
  * create the reader passing an optional
  * filename to help determine the most
  * likely file type.
  */
-MREAD_T* mread_create(const char *filename, int options) {
+MREAD_T* mread_create(
+  const char *filename, 
+  int options, 
+  bool symmetrical	// make background symmetrical if alphabet is complementable
+) {
   MREAD_T * mread = mm_malloc(sizeof(MREAD_T));
   memset(mread, 0, sizeof(MREAD_T));
   if (filename) mread->filename = strdup(filename);
@@ -345,6 +391,7 @@ MREAD_T* mread_create(const char *filename, int options) {
   mread->conv_alph = NULL;
   mread->pseudo_total = 0;
   mread->other_bg_src = strdup("--motif--");
+  mread->symmetrical = symmetrical;
   // create readers of each format
   add_format(mread, "MEME XML", mxml_create, mxml_destroy, mxml_update,
       mxml_has_format_match, mxml_has_warning, mxml_next_warning,
@@ -368,6 +415,10 @@ MREAD_T* mread_create(const char *filename, int options) {
       dxml_has_format_match, dxml_has_warning, dxml_next_warning, dxml_has_error, dxml_next_error, 
       dxml_has_motif, dxml_next_motif, dxml_get_alphabet, dxml_get_strands,
       dxml_get_bg, dxml_motif_optional, dxml_file_optional);
+  add_format(mread, "STREME XML", sxml_create, sxml_destroy, sxml_update,
+      sxml_has_format_match, sxml_has_warning, sxml_next_warning, sxml_has_error, sxml_next_error, 
+      sxml_has_motif, sxml_next_motif, sxml_get_alphabet, sxml_get_strands,
+      sxml_get_bg, sxml_motif_optional, sxml_file_optional);
   return mread;
 }
 
@@ -376,37 +427,51 @@ MREAD_T* mread_create(const char *filename, int options) {
  *
  * This cancels any previously set background option.
  */
-void mread_set_conversion(MREAD_T *mread, ALPH_T *alph, const ARRAY_T *bg) {
+void mread_set_conversion(
+  MREAD_T *mread, 
+  ALPH_T *alph, 
+  const ARRAY_T *bg
+) {
+
+  // Sanity check.
+  if (bg != NULL) {
+    if (get_array_length(bg) < alph_size_core(alph)) {
+      die("Background from '%s' too short for alphabet '%s'.\n"
+       "       Has %d entries but needs at least %d.", 
+        (mread->other_bg_src ? mread->other_bg_src : "null"),
+        alph_name(alph), get_array_length(bg), alph_size_core(alph));
+    }
+  }
+
   // clean up old bg
   if (mread->other_bg != NULL) free_array(mread->other_bg);
   mread->other_bg = NULL;
-  if (mread->other_bg_src != NULL) free(mread->other_bg_src);
+  if (mread->other_bg_src) free(mread->other_bg_src);
   mread->other_bg_src = NULL;
+
   // copy bg
   if (bg != NULL) {
-    if (get_array_length(bg) < alph_size_core(alph)) {
-      die("Background too short for alphabet %s. "
-          "Has %d entries but needs at least %d.", alph_name(alph),
-          get_array_length(bg), alph_size_core(alph));
-    }
+    if (mread->other_bg_src != NULL) free(mread->other_bg_src);
     mread->other_bg = allocate_array(get_array_length(bg));
     copy_array(bg, mread->other_bg);
   } else {
     // no background so generate one based on the alphabet
     mread->other_bg = get_uniform_frequencies(alph, NULL);
   }
+
   // copy alphabet
   mread->conv_alph = alph_hold(alph);
-  // check if we've chosen a parser already
-  if (mread->success) set_pseudo_bg(mread);
-}
+
+  // set the pseudocount background
+  if (mread->success) set_pseudo_bg(mread, mread->conv_alph);
+} // mread_set_conversion
 
 /*
  * Set the background to be used for pseudocounts.
  *
  * This cancels a conversion alphabet.
  */
-void mread_set_background(MREAD_T *mread, const ARRAY_T *bg) {
+void mread_set_background(MREAD_T *mread, const ARRAY_T *bg, ALPH_T *alph) {
   // clean up old bg
   if (mread->other_bg != NULL) free_array(mread->other_bg);
   mread->other_bg = NULL;
@@ -421,36 +486,44 @@ void mread_set_background(MREAD_T *mread, const ARRAY_T *bg) {
     copy_array(bg, mread->other_bg);
   }
   // check if we've chosen a parser already
-  if (mread->success) set_pseudo_bg(mread);
+  if (mread->success) set_pseudo_bg(mread, alph);
 }
 
 /*
  * Set the background source to be used for pseudocounts.
  * The background is resolved by the following rules:
- * - If source is:
- *   null or "--nrdb--"       use nrdb frequencies
- *   "--uniform--"            use uniform frequencies
- *   "motif-file"             use frequencies in motif file
- *   file name                read frequencies from bg file
+ *   If source is:
+ *     null or "--nrdb--"			use nrdb frequencies
+ *     "--uniform--"				use uniform frequencies
+ *     "motif-file", "--motif--" or "--query"	use frequencies in motif file
+ *     file name                		read frequencies from bg file
  *
  *   This cancels a conversion alphabet.
  */
-void mread_set_bg_source(MREAD_T *mread, const char *source) {
+void mread_set_bg_source(
+  MREAD_T *mread, 
+  const char *source,
+  ALPH_T *alph
+) {
   // clean up old bg
   if (mread->other_bg != NULL) free_array(mread->other_bg);
   mread->other_bg = NULL;
   if (mread->other_bg_src != NULL) free(mread->other_bg_src);
   mread->other_bg_src = NULL;
+
   // clean up conversion alphabet
   if (mread->conv_alph != NULL) alph_release(mread->conv_alph);
   mread->conv_alph = NULL;
+
   // copy the passed source
   if (source != NULL) {
+    if (mread->other_bg_src != NULL) free(mread->other_bg_src);
     mread->other_bg_src = strdup(source);
   }
-  // check if we've chosen a parser already
-  if (mread->success) set_pseudo_bg(mread);
-}
+
+  // Set the background for pseudocounts.
+  if (mread->success) set_pseudo_bg(mread, alph);
+} // mread_set_bg_source
 
 /*
  * Set the pseudo-count to be applied to the motifs.
@@ -465,21 +538,7 @@ void mread_set_pseudocount(MREAD_T *mread, double pseudocount) {
  */
 void mread_set_trim(MREAD_T *mread, double trim_bits) {
   mread->trim_bits = trim_bits;
-  mread->trim = TRUE;
-}
-
-/*
- * Set the file as an alternative to calling update with chunks of the file. 
- * This will cause mread_update to be called automatically when has_motif or 
- * next_motif is called and no motifs are avaliable. It does not close the
- * file.
- */
-void mread_set_file(MREAD_T *mread, FILE *file) {
-  if (mread->options & OPEN_MFILE && mread->fp != stdin) {
-    fclose(mread->fp);
-    mread->options &= ~OPEN_MFILE;
-  }
-  mread->fp = file;
+  mread->trim = true;
 }
 
 void mread_destroy(MREAD_T *mread) {
@@ -502,13 +561,13 @@ void mread_destroy(MREAD_T *mread) {
   free(mread);
 }
 
-static BOOLEAN_T motif_avaliable(MREAD_T *mread) {
+static bool motif_avaliable(MREAD_T *mread) {
   // check that we know the format
   if (mread->success) {
     MFORMAT_T *format = mread->formats;
     return format->valid && format->has_motif(format->data);
   }
-  return FALSE;
+  return false;
 }
 
 #define MREAD_BUFFER_SIZE 100
@@ -529,7 +588,7 @@ static inline void attempt_read_motif(MREAD_T *mread) {
 /*
  * Is there another motif to return
  */
-BOOLEAN_T mread_has_motif(MREAD_T *mread) {
+bool mread_has_motif(MREAD_T *mread) {
   attempt_read_motif(mread);
   return motif_avaliable(mread);
 }
@@ -582,6 +641,16 @@ ARRAYLST_T* mread_load(MREAD_T *mread, ARRAYLST_T *motifs) {
 }
 
 /*
+ * Get the background source string as a free-able copy.
+*/
+char* mread_get_other_bg_src(MREAD_T *mread) {
+  if (mread->other_bg_src)
+    return strdup(mread->other_bg_src);
+  else
+    return NULL;
+}
+
+/*
  * Get the alphabet. If the alphabet is unknown then returns NULL.
  * WARNING: does not automatically prevent the alphabet from being deallocated.
  * If users wish to keep the alphabet they must call alph_hold on it themselves.
@@ -620,7 +689,7 @@ ARRAY_T *mread_get_background(MREAD_T *mread) {
   if (mread->pseudo_bg) {
     bg = allocate_array(get_array_length(mread->pseudo_bg));
     copy_array(mread->pseudo_bg, bg);
-    if (mread->options & CALC_AMBIGS) calc_ambigs(alph, FALSE, bg);
+    if (mread->options & CALC_AMBIGS) calc_ambigs(alph, false, bg);
     return bg;
   }
   return NULL;

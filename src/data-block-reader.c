@@ -28,16 +28,16 @@
 DATA_BLOCK_READER_T *new_data_block_reader(
   void *data,
   void (*free)(DATA_BLOCK_READER_T *reader),
-  BOOLEAN_T (*close)(DATA_BLOCK_READER_T *reader),
-  BOOLEAN_T (*reset)(DATA_BLOCK_READER_T *reader),
-  BOOLEAN_T (*is_eof)(DATA_BLOCK_READER_T *reader),
-  BOOLEAN_T (*get_next_block)(
+  bool (*close)(DATA_BLOCK_READER_T *reader),
+  bool (*reset)(DATA_BLOCK_READER_T *reader),
+  bool (*is_eof)(DATA_BLOCK_READER_T *reader),
+  bool (*get_next_block)(
     DATA_BLOCK_READER_T *reader, 
     DATA_BLOCK_T *data_block 
   ),
-  BOOLEAN_T (*unget_block)(DATA_BLOCK_READER_T *reader),
-  BOOLEAN_T (*go_to_next_sequence)(DATA_BLOCK_READER_T *reader),
-  BOOLEAN_T (*get_seq_name)(DATA_BLOCK_READER_T *reader, char **sequence)
+  bool (*unget_block)(DATA_BLOCK_READER_T *reader),
+  bool (*go_to_next_sequence)(DATA_BLOCK_READER_T *reader),
+  bool (*get_seq_name)(DATA_BLOCK_READER_T *reader, char **sequence)
 ) {
   DATA_BLOCK_READER_T *reader = mm_malloc(sizeof(DATA_BLOCK_READER_T) * 1);
   reader->data = data;
@@ -80,15 +80,18 @@ void *get_data_block_reader_data(DATA_BLOCK_READER_T *reader) {
  ****************************************************************************/
 void read_one_priors_segment_from_reader(
    DATA_BLOCK_READER_T *prior_reader,
+   bool use_default_prior,
    size_t max_size,
    size_t buffer_offset,
    SEQ_T *sequence
 ) {
+  int i;
 
   assert(sequence != NULL);
 
   char *seq_name = get_seq_name(sequence);
   size_t seq_start = get_seq_offset(sequence);
+  unsigned int seq_length = get_seq_length(sequence);
   // Get the priors buffer from the SEQ_T
   double *priors = get_seq_priors(sequence);
   if (priors == NULL) {
@@ -96,17 +99,24 @@ void read_one_priors_segment_from_reader(
     priors = mm_malloc(max_size * sizeof(double));
   }
 
-  get_prior_array_from_reader(
-    prior_reader, 
-    seq_name, 
-    seq_start, 
-    max_size, 
-    buffer_offset,
-    priors
-  );
+  if (prior_reader && !use_default_prior) {
+    get_prior_array_from_reader(
+      prior_reader, 
+      seq_name, 
+      seq_start, 
+      max_size, 
+      buffer_offset,
+      priors
+    );
+  } else {
+    double default_prior = get_default_prior_from_reader(prior_reader);
+    int num_copied = MIN(max_size, seq_length);
+    for (i=0; i<num_copied; i++) priors[i] = default_prior;
+  }
+
   set_seq_priors(priors, sequence);
 
-}
+} // read_one_priors_segment_from_reader
 
 /******************************************************************************
  * This function allocates and initializes a SEQ_T object from a FASTA and
@@ -117,12 +127,13 @@ void read_one_priors_segment_from_reader(
 SEQ_T *get_next_seq_from_readers(
   DATA_BLOCK_READER_T *fasta_reader, 
   DATA_BLOCK_READER_T *prior_reader,
+  bool use_default_prior,
   size_t max_size
 ) {
 
   // Move to the next sequence in the fasta file.
-  BOOLEAN_T got_seq = fasta_reader->go_to_next_sequence(fasta_reader);
-  if (got_seq == FALSE) {
+  bool got_seq = fasta_reader->go_to_next_sequence(fasta_reader);
+  if (got_seq == false) {
     // Reached EOF
     return NULL;
   }
@@ -144,9 +155,9 @@ SEQ_T *get_next_seq_from_readers(
   );
 
   // Move to the next sequence in the priors file.
-  if (prior_reader) {
-    BOOLEAN_T got_priors_seq = prior_reader->go_to_next_sequence(prior_reader);
-    if (got_priors_seq == FALSE) {
+  if (prior_reader && !use_default_prior) {
+    bool got_priors_seq = prior_reader->go_to_next_sequence(prior_reader);
+    if (got_priors_seq == false) {
       die("Unable to read sequence from priors file.");
     }
     // Check that the sequence name from the FASTA reader matches
@@ -164,9 +175,10 @@ SEQ_T *get_next_seq_from_readers(
     // Read the first segment of priors data into the sequence.
     read_one_priors_segment_from_reader(
       prior_reader,
+      false,					// not using default prior
       max_size,
       0, // No buffer offset on first segment
-      sequence 
+      sequence
     );
   }
 
@@ -208,8 +220,8 @@ void get_prior_from_reader(
     // Allocate prior block if not we've not already done so
     *prior_block = new_prior_block();
     // Fill in first data for block 
-    BOOLEAN_T result = prior_reader->get_next_block(prior_reader, *prior_block);
-    if (result == FALSE) {
+    bool result = prior_reader->get_next_block(prior_reader, *prior_block);
+    if (result == false) {
       die("Failed to read first prior from sequence %s.", seq_name);
     }
   }
@@ -229,8 +241,8 @@ void get_prior_from_reader(
   else {
     // Sequence position is after current prior position.
     // Try reading the next prior block.
-    BOOLEAN_T priors_remaining = FALSE;
-    while ((priors_remaining = prior_reader->get_next_block(prior_reader, *prior_block)) != FALSE) {
+    bool priors_remaining = false;
+    while ((priors_remaining = prior_reader->get_next_block(prior_reader, *prior_block)) != false) {
       block_position = get_start_pos_for_data_block(*prior_block);
       block_extent = get_num_read_into_data_block(*prior_block);
       if (block_position > seq_position) {
@@ -243,7 +255,7 @@ void get_prior_from_reader(
         break;
       }
     }
-    if (priors_remaining == FALSE && verbosity > NORMAL_VERBOSE) {
+    if (priors_remaining == false && verbosity > NORMAL_VERBOSE) {
       fprintf(stderr, "Warning: reached end of priors for sequence %s.\n", seq_name);
     }
   }
@@ -253,7 +265,7 @@ void get_prior_from_reader(
 * Read an array of priors from the priors file.
 *
 * If no prior for in the sequence and coordinate given 
-* is found in the prior file, the priors will be set to 0.5
+* is found in the prior file, the priors will be set to 0.5.
 *
 * If the seq. position is within the extent of the current
 * prior block we set the prior to the value from the block.
@@ -262,43 +274,42 @@ void get_prior_from_reader(
 * prior block we read blocks until reach the seq. position
 * or we reach the end of the sequence.
 *
-* Sequences must occur in the same order as the FASTA file
-* Positions in sequence must be in increasing order
+* Sequences must occur in the same order as the FASTA file.
+* Positions in sequence must be in increasing order.
 ********************************************************/
 void get_prior_array_from_reader(
   DATA_BLOCK_READER_T *prior_reader,
   const char *seq_name,
   size_t seq_start,
-  size_t num_priors,
+  size_t max_size,
   size_t buffer_offset,
   double *priors
 ) {
 
-  size_t seq_end = seq_start + num_priors;
+  size_t seq_end = seq_start + max_size;
   char *prior_seq_name = NULL;
   prior_reader->get_seq_name(prior_reader, &prior_seq_name);
 
   assert(strcmp(seq_name, prior_seq_name) == 0);
 
-  // Fill the array with the default prior 
-  // starting at the buffer offset
+  // Fill the array with the default prior starting at the buffer offset.
   double default_prior = get_default_prior_from_reader(prior_reader);
   size_t i;
-  for (i = buffer_offset; i < num_priors; ++i) {
+  for (i = buffer_offset; i < max_size; ++i) {
     priors[i] = default_prior;
   }
 
-  BOOLEAN_T result;
+  bool result;
   size_t prior_start;
   size_t prior_length;
   size_t prior_end;
   DATA_BLOCK_T *prior_block = new_prior_block();
 
   // Read and copy prior blocks until we've filled in the array
-  while (TRUE) {
+  while (true) {
 
     result = prior_reader->get_next_block(prior_reader, prior_block);
-    if (result == FALSE) {
+    if (result == false) {
       // Reached the end of priors for this sequence
       break;
     }
@@ -314,11 +325,9 @@ void get_prior_array_from_reader(
     // Copy the priors into the array
     size_t start_intersect = MAX(prior_start, seq_start);
     size_t end_intersect = MIN(prior_end, seq_end);
-    BOOLEAN_T overlap = (end_intersect >= start_intersect);
-    if (overlap == TRUE) {
-      // FIXEME CEG
-      // size_t num_to_copy = end_intersect - start_intersect + 1;
-      size_t num_to_copy = end_intersect - start_intersect;
+    bool overlap = (end_intersect >= start_intersect);
+    if (overlap == true) {
+      size_t num_to_copy = end_intersect - start_intersect + 1;
       size_t intersect_offset =  start_intersect - seq_start;
       for (i = 0; i < num_to_copy; ++i) {
         priors[intersect_offset + i] = get_prior_from_data_block(prior_block);
@@ -336,7 +345,7 @@ void get_prior_array_from_reader(
 
   free_data_block(prior_block);
   return;
-}
+} // get_prior_array_from_reader
 
 /********************************************************
 * Get the default prior from the prior reader

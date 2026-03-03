@@ -20,7 +20,7 @@ typedef struct wig_prior_block_reader WIG_PRIOR_BLOCK_READER_T;
  * priors from a wiggle file.
  *****************************************************************************/
 DATA_BLOCK_READER_T *new_prior_reader_from_wig(
-  const char *filenae, 
+  const char *filename, 
   double default_prior
 );
 

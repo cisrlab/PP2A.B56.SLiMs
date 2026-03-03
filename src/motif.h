@@ -21,10 +21,13 @@
 #define NON_MOTIF_ID_CHAR '.'
 
 // Maximum number of characters in a motif ID.
-#define MAX_MOTIF_ID_LENGTH 100
+#define MAX_MOTIF_ID_LENGTH 200
 #define MAX_MOTIF_URL_LENGTH 500
 
 typedef struct motif_t MOTIF_T;
+#include "motif-spec.h"		// breaks encapsulation but allows faster 
+				// access speeding AME by 38%
+
 
 /***********************************************************************
  * Set a boolean to true on the motif object.
@@ -50,109 +53,110 @@ bool test_motif_mark
 /***********************************************************************
  * Get the index of the motif in the file. The first motif is indexed 1.
  ***********************************************************************/
-int get_motif_idx
-  (MOTIF_T* motif);
+#define get_motif_idx(motif) ((motif)->idx)
 
 /***********************************************************************
- * Get the motif id.
+ * Get the motif id without strand indicator.
  ***********************************************************************/
-char* get_motif_id
-  (MOTIF_T* motif);
-
-char* get_motif_id2
-  (MOTIF_T* motif);
-
-/***********************************************************************
- * Get the strand of a motif.
- ***********************************************************************/
-char get_motif_strand
-  (MOTIF_T *motif);
+#define get_motif_id(motif) ((motif)->id + 1)
 
 /***********************************************************************
  * Get motif id with leading +/- indicating strand.
  * For protein motifs this acts like get_motif_id.
  ***********************************************************************/
-char* get_motif_st_id
-  (MOTIF_T *motif);
+#define get_motif_st_id(motif) ((!alph_has_complement((motif)->alph)) ? (motif)->id + 1 : (motif)->id)
+
+/***********************************************************************
+ * Get the motif id2
+ ***********************************************************************/
+#define get_motif_id2(motif) ((motif)->id2)
+
+/***********************************************************************
+ * Get the consensus of a motif.
+ ***********************************************************************/
+#define get_motif_consensus(motif) ((motif)->consensus)
+
+/***********************************************************************
+ * Get the strand of a motif.
+ ***********************************************************************/
+#define get_motif_strand(motif) ((motif)->id[0])
 
 /***********************************************************************
  * Get the frequencies
  ***********************************************************************/
-MATRIX_T* get_motif_freqs
-  (MOTIF_T* motif);
+#define get_motif_freqs(motif) ((motif)->freqs)
 
 /***********************************************************************
  * Get the scores
  ***********************************************************************/
-MATRIX_T* get_motif_scores
-  (MOTIF_T* motif);
+#define get_motif_scores(motif) ((motif)->scores)
 
 /***********************************************************************
  * Get the motif length
  ***********************************************************************/
-int get_motif_length
-  (const MOTIF_T* motif);
+#define get_motif_length(motif) ((motif)->length)
 
 /***********************************************************************
  * Get the motif length after trimming
  ***********************************************************************/
-int get_motif_trimmed_length
-  (MOTIF_T* motif);
+#define get_motif_trimmed_length(motif) ((motif)->length - (motif)->trim_left - (motif)->trim_right)
 
 /***********************************************************************
  * Get the motif alphabet
  ***********************************************************************/
-ALPH_T* get_motif_alph
-  (MOTIF_T* motif);
+#define get_motif_alph(motif) ((motif)->alph)
 
 /***********************************************************************
  * Get the motif strands
- * TRUE if the motif was created looking at both strands
+ * true if the motif was created looking at both strands
  ***********************************************************************/
-BOOLEAN_T get_motif_strands
-  (MOTIF_T *motif);
+#define get_motif_strands(motif) (((motif)->flags & MOTIF_BOTH_STRANDS) != 0)
+
+/***********************************************************************
+ * Set the motif strands flag to true.
+ ***********************************************************************/
+#define set_motif_strands(motif) ((motif)->flags |= MOTIF_BOTH_STRANDS)
 
 /***********************************************************************
  * Get the motif alphabet size (non-ambiguous letters)
  ***********************************************************************/
-int get_motif_alph_size
-  (MOTIF_T* motif);
+#define get_motif_alph_size(motif) (alph_size_core((motif)->alph))
 
 /***********************************************************************
  * Get the motif ambiguous alphabet size (only ambiguous letters)
  ***********************************************************************/
-int get_motif_ambiguous_size
-  (MOTIF_T* motif);
+#define get_motif_ambiguous_size(motif) ((motif)->flags & MOTIF_HAS_AMBIGS ? alph_size_ambig((motif)->alph) : 0)
 
 /***********************************************************************
  * Get the E-value of a motif.
  ***********************************************************************/
-double get_motif_evalue
-  (MOTIF_T* motif);
+#define get_motif_evalue(motif) ((motif)->evalue)
 
 /***********************************************************************
  * Get the log E-value of a motif.
  ***********************************************************************/
-double get_motif_log_evalue
-  (MOTIF_T* motif);
+#define get_motif_log_evalue(motif) ((motif)->log_evalue)
 
 /***********************************************************************
  * Get the complexity of a motif.
  ***********************************************************************/
-double get_motif_complexity
-  (MOTIF_T *motif);
+#define get_motif_complexity(motif) ((motif)->complexity)
 
 /***********************************************************************
  * Get the number of sites of a motif.
  ***********************************************************************/
-double get_motif_nsites
-  (MOTIF_T* motif);
+#define get_motif_nsites(motif) ((motif)->num_sites)
+
+/***********************************************************************
+ * Set the number of sites of a motif.
+ ***********************************************************************/
+#define set_motif_nsites(motif, nsites) ((motif)->num_sites = (nsites))
 
 /***********************************************************************
  * Get the position specific score for a letter
  ***********************************************************************/
-double get_motif_score
-  (MOTIF_T* motif, int position, int i_alph);
+#define get_motif_score(motif, position, i_alph) \
+ (get_matrix_cell((position), (i_alph), (motif)->scores))
 
 /***********************************************************************
  * Return one column of a motif, as a newly allocated array of counts.
@@ -164,26 +168,22 @@ ARRAY_T* get_motif_counts
 /***********************************************************************
  * Get the url of a motif
  ***********************************************************************/
-char* get_motif_url
-  (MOTIF_T* motif);
+#define get_motif_url(motif) ((motif)->url)
 
 /***********************************************************************
  * Check if the motif has a URL
  ***********************************************************************/
-BOOLEAN_T has_motif_url
-  (MOTIF_T *motif);
+#define has_motif_url(motif) (((motif)->url && (motif)->url[0] != '\0'))
 
 /***********************************************************************
  * Get the number of positions to trim from the left of the motif
  ***********************************************************************/
-int get_motif_trim_left
-  (MOTIF_T *motif);
+#define get_motif_trim_left(motif) ((motif)->trim_left)
 
 /***********************************************************************
  * Get the number of positions to trim from the right of the motif
  ***********************************************************************/
-int get_motif_trim_right
-  (MOTIF_T *motif);
+#define get_motif_trim_right(motif) ((motif)->trim_right)
 
 /***********************************************************************
  * Clear the motif trim
@@ -201,7 +201,7 @@ bool has_motif_zeros
 /***********************************************************************
  * Determine whether a given motif is in a given list of motifs.
  ***********************************************************************/
-BOOLEAN_T have_motif
+bool have_motif
   (char*    motif_id,
    int      num_motifs,
    MOTIF_T* motifs);
@@ -316,7 +316,7 @@ double compute_motif_complexity
  *
  ***********************************************************************/
 int get_info_content_position
-  (BOOLEAN_T from_start, // Count from start?  Otherwise, count from end.
+  (bool from_start, // Count from start?  Otherwise, count from end.
    float     threshold,  // Information content threshold (in 0-100).
    ARRAY_T*  background, // Background distribution.
    MOTIF_T*  a_motif);
@@ -402,5 +402,19 @@ void dump_motif_freqs(FILE *out, MOTIF_T* m);
  ***********************************************************************/
 void read_motif_alphabets(ARRAYLST_T* motif_sources, bool xalph, ALPH_T** alph);
 
+/**************************************************************************
+ * Compares two AP_T and orders largest probability to smallest probability.
+ **************************************************************************/
+int ap_cmp(const void *p1, const void *p2);
+
+/**************************************************************************
+ * Compares two uint8_t and orders smallest to largest.
+ **************************************************************************/
+int idx_cmp(const void *p1, const void *p2);
+
+/**************************************************************************
+ * Attempts to make a reasonable consensus representation of a motif.
+ **************************************************************************/
+void motif2consensus(MOTIF_T* motif, STR_T* consensus, bool single_letter);
 #endif
 

@@ -11,6 +11,10 @@
 #include "alphabet.h"
 #include "utils.h"
 #include "xml-util.h"
+#include <libxslt/xslt.h>
+#include <libxslt/xsltInternals.h>
+#include <libxslt/transform.h>
+#include <libxslt/xsltutils.h>
 
 /***********************************************************************
  * Look up a set of elments using an XPath string.
@@ -35,11 +39,11 @@ xmlXPathObjectPtr xpath_query(
 /***********************************************************************
  * Check if property from an XML node exists.
  ***********************************************************************/
-BOOLEAN_T check_xml_node_property(
+bool check_xml_node_property(
   xmlNodePtr node, 
   char* property_name
 ) {
-  BOOLEAN_T exists;
+  bool exists;
   xmlChar* property = xmlGetProp(node, BAD_CAST property_name);
   exists = (property != NULL);
   free(property);
@@ -168,7 +172,7 @@ ARRAY_T* read_bg_freqs_from_xml(xmlXPathContextPtr xpath_ctxt, ALPH_T* alph) {
   normalize_subarray(0, a_size, 0.0, bg_freqs);
 
   // Fill in ambiguous characters. 
-  calc_ambigs(alph, FALSE, bg_freqs);
+  calc_ambigs(alph, false, bg_freqs);
 
   return bg_freqs;
 
@@ -180,7 +184,7 @@ print_xml_using_stylesheet
 Print the contents of an XML Doc to a file, applying an 
 XSLT stylesheet.
 **********************************************************************/
-BOOLEAN_T print_xml_filename_to_file_using_stylesheet(
+bool print_xml_filename_to_file_using_stylesheet(
     char* input_file_path,      /* path to XML input file IN */
     char* stylesheet_file_path, /* path to MEME XSL stylesheet IN */
     FILE* output_file           /* path to HTML output file IN */
@@ -195,12 +199,12 @@ BOOLEAN_T print_xml_filename_to_file_using_stylesheet(
   input_doc = xmlParseFile(input_file_path);
   if (!input_doc) {
     fprintf(stderr, "Unable to parse input file %s.\n", input_file_path);
-    return FALSE;
+    return false;
   }
   stylesheet = xsltParseStylesheetFile((const xmlChar *) stylesheet_file_path);
   if (!stylesheet) {
     fprintf(stderr, "Unable to parse stylesheet %s.\n", stylesheet_file_path);
-    return FALSE;
+    return false;
   }
   output_doc = xsltApplyStylesheet(stylesheet, input_doc, NULL);
   if (!output_doc) {
@@ -209,18 +213,18 @@ BOOLEAN_T print_xml_filename_to_file_using_stylesheet(
       "Unable to apply stylsheet %s to to input.\n", 
       stylesheet_file_path
     );
-    return FALSE;
+    return false;
   }
   int result = xsltSaveResultToFile(output_file, output_doc, stylesheet);
   if (result == -1) {
     fprintf(stderr, "Unable to save result of applying stylesheet %st.\n", stylesheet_file_path);
-    return FALSE;
+    return false;
   }
 
   xmlFreeDoc(output_doc);
   xsltFreeStylesheet(stylesheet);
 
-  return TRUE;
+  return true;
 
 } /* print_xml_to_file_using_stylesheet_html */
 
@@ -230,9 +234,9 @@ print_xml_filename_to_filename_using_stylesheet
 Print the contents of an XML file to another file applying an 
 XSLT stylesheet.
 
-Returns TRUE if successful, FALSE otherwise.
+Returns true if successful, false otherwise.
 **********************************************************************/
-BOOLEAN_T print_xml_filename_to_filename_using_stylesheet(
+bool print_xml_filename_to_filename_using_stylesheet(
     char* input_file_path,        /* path to XML input file IN */
     char* stylesheet_file_path,   /* path to MEME XSL stylesheet IN */
     char* output_file_path        /* path to HTML output file IN */
@@ -248,12 +252,12 @@ BOOLEAN_T print_xml_filename_to_filename_using_stylesheet(
   stylesheet = xsltParseStylesheetFile((const xmlChar *) stylesheet_file_path);
   if (!stylesheet) {
     fprintf(stderr, "Unable to parse stylesheet %s.\n", stylesheet_file_path);
-    return FALSE;
+    return false;
   }
   input_doc = xmlParseFile(input_file_path);
   if (!input_doc) {
     fprintf(stderr, "Unable to parse input file %s.\n", input_file_path);
-    return FALSE;
+    return false;
   }
   output_doc = xsltApplyStylesheet(stylesheet, input_doc, NULL);
   if (!output_doc) {
@@ -263,7 +267,7 @@ BOOLEAN_T print_xml_filename_to_filename_using_stylesheet(
       stylesheet_file_path,
       input_file_path
     );
-    return FALSE;
+    return false;
   }
   int result = xsltSaveResultToFilename(output_file_path, output_doc, stylesheet, 0);
   if (result == -1) {
@@ -281,6 +285,6 @@ BOOLEAN_T print_xml_filename_to_filename_using_stylesheet(
   xsltCleanupGlobals();
   xmlCleanupParser();
 
-  return TRUE;
+  return true;
 
 } /* print_xml_file_html */

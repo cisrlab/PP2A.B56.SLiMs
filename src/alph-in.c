@@ -1,4 +1,3 @@
-
 #include <assert.h>
 #include <float.h>
 #include <limits.h>
@@ -547,7 +546,7 @@ static void process_core(ALPH_READER_T *reader, const int64_t line_num,
   char sym_str[2];
   if (symbol == '?') {
     add_msg(reader, parmsg_create(SEVERITY_ERROR, -1, line_num, -1,
-          "symbol '?' is reserved as a wildcard and can not be defined to have any other meaning"));
+          "symbol '?' is reserved as a wildcard and cannot be defined to have any other meaning"));
   }
   sym = alph_sym_create(symbol, name, colour, complement, NULL);
   sym_str[0] = symbol;
@@ -562,7 +561,7 @@ static void process_core(ALPH_READER_T *reader, const int64_t line_num,
   rbtree_make(reader->core, sym_str, sym); // track the set of core symbols
   if (symbol >= 'A' && symbol <= 'Z') reader->seen_upper_case = true;
   else if (symbol >= 'a' && symbol <= 'z') reader->seen_lower_case = true;
-}
+} // process_core
 
 /*
  * sort_and_remove_duplicates
@@ -622,7 +621,7 @@ static void process_ambig(ALPH_READER_T *reader, const int64_t line_num,
     // check it is a wildcard
     if (strlen(comprise) != rbtree_size(reader->core)) {
       add_msg(reader, parmsg_create(SEVERITY_ERROR, -1, line_num, -1,
-            "symbol '?' is reserved as a wildcard and can not be defined to have any other meaning"));
+            "symbol '?' is reserved as a wildcard and cannot be defined to have any other meaning"));
     }
   }
   sym_str[0] = symbol;
@@ -700,7 +699,7 @@ ALPH_READER_T* alph_reader_create() {
   reader->seen_upper_case = false;
   reader->messages = linklst_create();
   return reader;
-}
+} // alph_reader_create
 
 /*
  * alph_reader_destroy
@@ -960,32 +959,44 @@ static void create_wildcard_if_missing(ALPH_READER_T *reader) {
 }
 
 static void calculate_case_insensitivity(ALPH_READER_T *reader) {
+  // see if we should treat uppercase and lowercase the same
+  bool case_insensitive = reader->seen_lower_case != reader->seen_upper_case;
+  if (case_insensitive) reader->flags |= ALPH_CASE_INSENSITIVE;
+  return;
+
+// TLB; 31-May-2020 made the old version obsolete
+// The following routine seems to say an alphabet is only case-sensitive
+// if some symbol has an upper- and lowercase letter as two aliases.
+#ifdef OBSOLETE
   RBNODE_T *node, *node2;
   RBTREE_T *alias_set;
   ALPH_SYM_T *sym;
   char *alias, symbol;
-  bool case_insensitive;
-  case_insensitive = true;
+  bool case_insensitive = true;
   alias_set = rbtree_create(rbtree_charcmp, NULL, NULL, NULL, NULL);
   for (node = rbtree_first(reader->merged); node != NULL; node = rbtree_next(node)) {
     sym = (ALPH_SYM_T*)rbtree_value(node);
     // add all aliases to the set
     rbtree_make(alias_set, &(sym->symbol), NULL);
-    for (alias = sym->aliases; *alias != '\0'; alias++) {
+    for (alias = sym->aliases; alias != NULL && *alias != '\0'; alias++) {
       rbtree_make(alias_set, alias, NULL);
     }
     // check if all are case insensitive
     for (node2 = rbtree_first(alias_set); node2 != NULL; node2 = rbtree_next(node2)) {
       symbol = *((char*)rbtree_value(node));
+      // Check if lowercase version of this letter is an alias of something.
+      // If it is, then the alphabet is case-sensitive.
       if (symbol >= 'A' && symbol <= 'Z') {
         symbol += 32;
-        if (rbtree_find(alias_set, &symbol) == NULL) {
+        if (rbtree_find(alias_set, &symbol) != NULL) {
           case_insensitive = false;
           break;
         }
       } else if (symbol >= 'a' && symbol <= 'z') {
+	// Check if uppercase version of this letter is an alias of something.
+	// If it is, then the alphabet is case-sensitive.
         symbol -= 32;
-        if (rbtree_find(alias_set, &symbol) == NULL) {
+        if (rbtree_find(alias_set, &symbol) != NULL) {
           case_insensitive = false;
           break;
         }
@@ -996,6 +1007,7 @@ static void calculate_case_insensitivity(ALPH_READER_T *reader) {
   }
   rbtree_destroy(alias_set);
   if (case_insensitive) reader->flags |= ALPH_CASE_INSENSITIVE;
+#endif
 }
 
 /*
@@ -1268,7 +1280,7 @@ static inline void add_encoding(uint8_t* encode, bool both_case, char symbol, ui
 }
 
 /*
- * add_encoding
+ * add_encodings
  * Adds a letter and the alternates to an encoding array. 
  * See add_encoding for more details.
  */

@@ -302,19 +302,19 @@ int bmstr_substring(BMSTR_T *bmstr, const char *string, int len) {
  */
 int bmstr_multi_substring(int num, BMSTR_T **bmstrs, const char *string, int len, int *which) {
   int i, pos, left_p, left_i;
-  BOOLEAN_T matched, left_m;
+  bool matched, left_m;
 
   left_p = len;
-  left_m = FALSE;
+  left_m = false;
   left_i = 0;
 
   for (i = 0; i < num; ++i) {
     pos = bmstr_substring(bmstrs[i], string, len);
     if (pos < 0) {
       pos = -(pos + 1);
-      matched = FALSE;
+      matched = false;
     } else {
-      matched = TRUE;
+      matched = true;
     }
     if (pos < left_p) {
       left_p = pos;

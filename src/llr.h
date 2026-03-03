@@ -8,7 +8,7 @@ extern void init_llr_pv_tables(
   int max,                              /* maximum number of sites */
   int alength,                          /* alphabet length */
   ARRAY_T *back,                        /* background frequencies */
-  BOOLEAN pal                           /* sites are palindromes */
+  bool pal                           /* sites are palindromes */
 );
 
 extern double get_llr_pv(

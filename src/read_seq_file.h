@@ -13,9 +13,17 @@
 extern DATASET *read_seq_file(
   char *file_name,		/* name of file to open */
   ALPH_T *alph,			/* alphabet used in sequences */
-  BOOLEAN use_comp,		/* use complementary strands, too */
-  BOOLEAN ignore_dup 		// allow duplicate names
+  bool use_comp,		/* use complementary strands, too */
+  bool ignore_dup 		// allow duplicate names
 );
+
+extern DATASET *create_meme_dataset_from_momo(
+  ARRAYLST_T* seq_array,		/* name of file to open */
+  ALPH_T *alph,		/* alphabet used in sequences */
+  int width,
+  bool eliminate_repeats
+);
+
 extern SAMPLE *get_sample_by_name(
   char *sample_name
 );
@@ -24,7 +32,7 @@ extern void add_control_samples (
   DATASET *control,                     // control dataset
   int c1,                               // size of control group 1
   int c2,                               // size of control group 2
-  BOOLEAN use_comp                      // consider both strands
+  bool use_comp                      // consider both strands
 );
 extern void shuffle_dataset_order(
   DATASET *dataset              // dataset to shuffle
@@ -34,5 +42,5 @@ extern void shuffle_dataset_letters(
   int kmer,		// preserve k-mer counts in each sequence
   int revcomp		// include reverse complements of sequences
 );
-extern void destroy_sample(SAMPLE *sample);
+extern void free_sample(SAMPLE *sample);
 #endif

@@ -47,10 +47,10 @@ HEAP *create_heap(
   HEAP *heap = NULL;
   Resize(heap, 1, HEAP);
   heap->node_list = NULL;  	// a list containing nodes of the heap
-  heap->max_size = max_size;
+  heap->max_size = max_size;  
   n = (max_size < 0) ? HEAP_CHUNK : max_size + 1; // heap size is predefined or can grow
   Resize(heap->node_list, n, void *);
-  heap->cur_size = n;
+  heap->cur_size = n; 
   heap->next_node = 1;   	// index of root node
   heap->compare = compare;  	// heap order function
   heap->copy = copy;    	// function to copy two ojects
@@ -61,7 +61,7 @@ HEAP *create_heap(
   // as prime numbers have better resistance to hash collisions
 #define HASH_SIZE 101
   if (heap->get_key != NULL) {
-    heap->ht = hash_create(HASH_SIZE);
+    heap->ht = hash_create(HASH_SIZE, NULL);
   }
   else {
     heap->ht = NULL;
@@ -80,15 +80,15 @@ HEAP *create_heap(
     The score for a child node is >= the score of its parent
     The left child of a node at index p is at index position 2*p
     The right child of a node at index p is at index positon 2*p+1
+  
+  If the heap is not full the object is added to the next available 
+  index in the node list. The new object is then compared with its 
+  parent. If the new object is < the parent object/s the nodes are 
+  swapped until the heap order is re-established. 
 
-  If the heap is not full the object is added to the next available
-  index in the node list. The new object is then compared with its
-  parent. If the new object is < the parent object/s the nodes are
-  swapped until the heap order is re-established.
-
-  If the heap is full the new object is compared to the root object.
+  If the heap is full the new object is compared to the root object. 
   If the new object is > the root object, the root is "bumped"
-  from the heap and the new object replaces the root object.
+  from the heap and the new object replaces the root object.  
   The new object is then compared with its children nodes and is swapped
   with the smallest child node until the heap order is re-established.
 
@@ -120,7 +120,7 @@ void *add_node_heap(
   void *new = node;
 
   // Check if node with same key already is in heap if we would add this node.
-  // Don't add node to heap if one does.
+  // Don't add node to heap if one does. 
   if (heap->ht && ((i<=max) || (heap->compare(node, heap->node_list[1]) > 0))) {
     node_key = heap->get_key(new);
     if (hash_lookup_str(node_key, heap->ht)) return new;
@@ -132,7 +132,7 @@ void *add_node_heap(
     heap->node_list[i] = new;
     heap->next_node++;
     if (heap->ht) hash_insert_str(node_key, heap->ht);	// log new node's key
-
+    
     // move new node up while the parent node is greater than the new node
     while (
       p_node = i/2, 				// index of parent node
@@ -147,7 +147,7 @@ void *add_node_heap(
     }
     return NULL; 				// heap not full yet
 
-  } else if (heap->compare(node, heap->node_list[1]) > 0) {
+  } else if (heap->compare(node, heap->node_list[1]) > 0) { 
     // heap full and new node is larger than the root node
 
     // the new node becomes the root and the "percolates" down
@@ -160,7 +160,7 @@ void *add_node_heap(
     }
 
     //
-    // percolate nodes down to reestablish heap
+    // percolate nodes down to reestablish heap 
     //
     while (i <= max/2) {		// max_size/2 is the last parent node
       // get children nodes
@@ -168,18 +168,18 @@ void *add_node_heap(
       r_idx = l_idx+1;  		// index of right child
       left_node = heap->node_list[l_idx];
       // it is possible that there is only a left node
-      right_node = ((r_idx) > max) ? NULL: heap->node_list[r_idx];
+      right_node = ((r_idx) > max) ? NULL: heap->node_list[r_idx]; 
 
-      // get the smallest child node
+      // get the smallest child node 
       comp_n = (right_node) ? heap->compare(left_node, right_node): -1;
-
+      
       // swap with smallest child
       if (comp_n < 0) {  			// left node is the smallest
         if (heap->compare(new, left_node) > 0) {
           heap->node_list[l_idx] = new;  	// push new node down a level
           heap->node_list[i] = left_node;  	// becomes parent node
           i = l_idx; 				// update the index for new node
-        } else {  				// leave the nodes where they are
+        } else {  				// leave the nodes where they are 
           break;
         }
       } else {  				// the right node is the smallest
@@ -205,7 +205,7 @@ void *add_node_heap(
 //
 //      pop_heap_root
 //
-//      This function removes and then returns the root node
+//      This function removes and then returns the root node 
 //      from a heap. Following the removal of the root node,
 //      the heap-order properties are restored.
 //
@@ -223,15 +223,15 @@ void *pop_heap_root(HEAP *h)
   // Return NULL if the heap is empty
   if (get_num_nodes(h) <= 0) {
    return NULL;
-  }
+  } 
 
   // Remove the root node from the heap and hash table
   root_node = h->node_list[1];
   if (h->ht) {
-    hash_remove_str(h->get_key(root_node), h->ht);
+    hash_remove_str(h->get_key(root_node), h->ht); 
   }
 
-  // Restore the heap. Put the last node at the root, then
+  // Restore the heap. Put the last node at the root, then 
   // restablish the heap order property.
 
   // Move the last node in the heap to the root
@@ -244,7 +244,7 @@ void *pop_heap_root(HEAP *h)
     return root_node;
   }
 
-  // Restore the heap-order property by comparing the new root
+  // Restore the heap-order property by comparing the new root 
   // node with all it's child nodes.
 
   i = 1; // start at the new root node
@@ -256,7 +256,7 @@ void *pop_heap_root(HEAP *h)
     // it is possible that there is only a left node
     right_node = ((r_idx) > get_num_nodes(h)) ? NULL: h->node_list[r_idx];
 
-    // get the smallest child node
+    // get the smallest child node 
     comp_n = (right_node) ? h->compare(left_node, right_node): -1;
 
     // swap with smallest child
@@ -265,7 +265,7 @@ void *pop_heap_root(HEAP *h)
         h->node_list[l_idx] = tmp_root;       // push new node down a level
         h->node_list[i] = left_node;          // becomes parent node
         i = l_idx;                            // update the index for new node
-      } else {                                // leave the nodes where they are
+      } else {                                // leave the nodes where they are 
         break;
       }
     } else {                                  // the right node is the smallest
@@ -291,14 +291,14 @@ void *pop_heap_root(HEAP *h)
 //
 // 	Create a new heap with the same maxsize and compare functions as h.
 //
-// 	Fill the new heap with deep copies of the objects in h if a copy
+// 	Fill the new heap with deep copies of the objects in h if a copy 
 // 	function is given, otherwise return an empty heap.
 //
 HEAP *copy_heap(HEAP *h)
 {
   int i;
   void *temp, *temp2;
-  HEAP *new = create_heap(h->max_size, h->compare, h->copy, h->destroy, h->get_key, h->print);
+  HEAP *new = create_heap(h->max_size, h->compare, h->copy, h->destroy, h->get_key, h->print); 
 
   if (h->copy != NULL) {  	// check if the heap has an object copy function
     // add deep copies of the objects to the new heap
@@ -328,14 +328,14 @@ void destroy_heap(
   // Free each of the nodes in the heap:
   for (i = 1; i < h->next_node; i++){
     h->destroy(h->node_list[i]);
-  }
+  } 
   myfree(h->node_list); // Free the node list itself.
   if (h->ht) {
     hash_destroy(h->ht); // Free the hash table.
   }
   free(h);
 } // destroy_heap
-
+  
 //
 // 	get_num_nodes
 //
@@ -353,7 +353,7 @@ int get_num_nodes(
 // 	get_node
 //
 // 	Returns a pointer to the object at position i in the heap
-// 	(where the root is at position 1 and nodes are labeled according
+// 	(where the root is at position 1 and nodes are labeled according 
 // 	to a level order traversal).
 //
 void *get_node(

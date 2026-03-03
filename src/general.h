@@ -1,12 +1,3 @@
-/*
- * $Id: general.h 1048 2006-07-06 20:07:44Z cegrant $
- * 
- * $Log$
- * Revision 1.1  2005/07/29 18:38:26  nadya
- * Initial revision
- *
- */
-
 #ifndef GENERAL_H
 #define GENERAL_H
 
@@ -17,8 +8,9 @@
 		X=0, ignore statement
 		X=1, execute statement
 		X=2, execute statement but omit from usage message
+		     unless EXP_USAGE_MESSAGE has been used as an ACTION
 	The possible statements are as follows.
-	  SIMPLE_FLAG_OPTN(X,s,desc,var), which sets var to TRUE on
+	  SIMPLE_FLAG_OPTN(X,s,desc,var), which sets var to true on
 	    encountering the flag -s (s is an unquoted string of
 	    letters and digits).
 	  FLAG_OPTN(X,s,desc,stmt), which executes stmt on encountering -s.
@@ -55,7 +47,7 @@
 */
 
 #define SIMPLE_FLAG_OPTN(X,string,desc,var) \
-  FLAG_OPTN(X, string, desc, (var) = TRUE)
+  FLAG_OPTN(X, string, desc, (var) = true)
 
 #define FLAG_OPTN(X,string,desc,stmt) \
   if (X) { \
@@ -65,7 +57,7 @@
 	continue; \
       } \
     } \
-    else if (X != 2 && (__ACTION__ == 1 || __ACTION__ == 4)) { \
+    else if ((__EXP__ || X != 2) && (__ACTION__ == 1 || __ACTION__ == 4)) { \
       fprintf(stderr, "\t[-" #string "]" #desc "\n"); \
     } \
   }
@@ -134,10 +126,13 @@
 
 #define USAGE_MESSAGE { __ACTION__ = 6; continue; }
 
+#define EXP_USAGE_MESSAGE { __EXP__ = 1; __ACTION__ = 6; continue; }
+
 #define DO_STANDARD_COMMAND_LINE(n, stmts) \
   { \
     int __i__; \
     int __ACTION__ = 0; \
+    int __EXP__ = 0; \
     char *_OPTION_ = NULL; \
     __i__ = 0; \
     while (1) { \

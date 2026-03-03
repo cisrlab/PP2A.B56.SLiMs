@@ -39,7 +39,7 @@ struct minfo {
 struct fscope {
   int options_found;
   int options_returned;
-  BOOLEAN_T is_html;
+  bool is_html;
   int vmajor;
   int vminor;
   int vpatch;
@@ -63,10 +63,10 @@ struct fscope {
 struct mscope {
   int options_found;
   int options_returned;
-  BOOLEAN_T has_width;
-  BOOLEAN_T has_evalue;
-  BOOLEAN_T has_sites;
-  BOOLEAN_T started_with_bl_line;
+  bool has_width;
+  bool has_evalue;
+  bool has_sites;
+  bool started_with_bl_line;
   MOTIF_T *motif;
 };
 
@@ -87,6 +87,7 @@ struct patterns {
   regex_t bg_source;
   regex_t freq_pair;
   regex_t whitespace;
+  regex_t comment_line;
   regex_t motif_intro;
   regex_t motif_id2;
   regex_t motif_kv_pair;
@@ -142,12 +143,13 @@ static const char * POS_STRAND_RE = "\\+";
 static const char * NEG_STRAND_RE = "-";
 static const char * LETTER_FREQ_RE = "^Letter frequencies in dataset:$";
 static const char * BACKGROUND_RE = "^[[:space:]]*Background[[:space:]]+"
-    "letter[[:space:]]+frequencies([[:space:]].*)?$";
+    "letter[[:space:]]+frequencies(:|[[:space:]].*)?$";
 static const char * BG_SOURCE_RE = "^[[:space:]]+\\(from[[:space:]]+"
     "(.*)\\):.*$";
 static const char * FREQ_PAIR_RE = "^[[:space:]]*([A-Za-z0-9\\.\\*\\-])[[:space:]]+"
     POS_NUM_RE "([[:space:]].*)?$";
 static const char * WHITESPACE_RE = "^[[:space:]]*$";
+static const char * COMMENT_LINE_RE = "^[[:space:]]*#";
 // Can't ignore case on this one as normal meme format repeatedly
 // uses Motif as the first word on a line
 static const char * MOTIF_INTRO_RE = "^[[:space:]]*(BL[[:space:]]+)?MOTIF"
@@ -200,6 +202,7 @@ static void compile_patterns(struct patterns *re) {
   regcomp_or_die("bg source", &(re->bg_source), BG_SOURCE_RE, REG_EXTENDED | REG_ICASE);
   regcomp_or_die("freq pair", &(re->freq_pair), FREQ_PAIR_RE, REG_EXTENDED);
   regcomp_or_die("whitespace", &(re->whitespace), WHITESPACE_RE, REG_NOSUB);
+  regcomp_or_die("comment line", &(re->comment_line), COMMENT_LINE_RE, REG_NOSUB);
   regcomp_or_die("motif intro", &(re->motif_intro), MOTIF_INTRO_RE, REG_EXTENDED);
   regcomp_or_die("motif id 2", &(re->motif_id2), MOTIF_ID2_RE, REG_EXTENDED);
   regcomp_or_die("motif kv pair", &(re->motif_kv_pair), MOTIF_KV_PAIR_RE, REG_EXTENDED);
@@ -237,6 +240,7 @@ static void free_patterns(struct patterns *re) {
   regfree(&(re->bg_source));
   regfree(&(re->freq_pair));
   regfree(&(re->whitespace));
+  regfree(&(re->comment_line));
   regfree(&(re->motif_intro));
   regfree(&(re->motif_id2));
   regfree(&(re->motif_kv_pair));
@@ -342,7 +346,7 @@ void mtext_destroy(void *data) {
   linklst_destroy_all(parser->warnings, free);
   linklst_destroy_all(parser->errors, free);
   linklst_destroy_all(parser->motif_queue, destroy_motif);
-  str_destroy(parser->line, FALSE);
+  str_destroy(parser->line, false);
   free_patterns(&(parser->re));
   free_fscope(&(parser->fscope));
   if (parser->alph_rdr != NULL) alph_reader_destroy(parser->alph_rdr);
@@ -356,9 +360,9 @@ void mtext_destroy(void *data) {
 static void warning(MTEXT_T *parser, const char *format, ...) {
   va_list  argp;
   int len;
-  char dummy[1], *msg;
+  char *msg;
   va_start(argp, format);
-  len = vsnprintf(dummy, 1, format, argp);
+  len = vsnprintf(NULL, 0, format, argp);
   va_end(argp);
   msg = mm_malloc(sizeof(char) * (len + 1));
   va_start(argp, format);
@@ -373,9 +377,9 @@ static void warning(MTEXT_T *parser, const char *format, ...) {
 static void error(MTEXT_T *parser, const char *format, ...) {
   va_list  argp;
   int len;
-  char dummy[1], *msg;
+  char *msg;
   va_start(argp, format);
-  len = vsnprintf(dummy, 1, format, argp);
+  len = vsnprintf(NULL, 0, format, argp);
   va_end(argp);
   msg = mm_malloc(sizeof(char) * (len + 1));
   va_start(argp, format);
@@ -502,7 +506,7 @@ static void set_motif_width_from_params(MTEXT_T *parser, RBTREE_T *kv_pairs,
               "which is invalid as it is not larger than zero.\n", 
               type, name, width);
         } else {
-          parser->mscope.has_width = TRUE;
+          parser->mscope.has_width = true;
           parser->mscope.motif->length =  width;
         }
       }
@@ -550,7 +554,7 @@ static void set_motif_sites_from_params(MTEXT_T *parser, RBTREE_T *kv_pairs,
               "which is invalid as it is smaller than zero.\n", type, 
               name, sites);
         } else {
-          parser->mscope.has_sites = TRUE;
+          parser->mscope.has_sites = true;
           parser->mscope.motif->num_sites = sites;
         }
       }
@@ -585,11 +589,13 @@ static void set_motif_evalue_from_params(MTEXT_T *parser, RBTREE_T *kv_pairs,
               type, name, pow(10.0, log10_evalue), get_motif_evalue(parser->mscope.motif));
         }
       } else {
-        parser->mscope.has_evalue = TRUE;
+        parser->mscope.has_evalue = true;
         parser->mscope.motif->log_evalue = log10_evalue;
         parser->mscope.motif->evalue = pow(10.0, log10_evalue);
       }
     }
+  } else {
+    parser->mscope.motif->evalue = -1;
   }
 }
 
@@ -611,7 +617,7 @@ static void set_motif_params(MTEXT_T *parser, RBTREE_T *kv_pairs,
 /*
  * Read an array of numbers which make up a row of either a PSPM or a PSSM
  */
-static ARRAY_T* parse_nums(MTEXT_T *parser, BOOLEAN_T probabilities, BOOLEAN_T allow_bad, const char *line) {
+static ARRAY_T* parse_nums(MTEXT_T *parser, bool probabilities, bool allow_bad, const char *line) {
   regmatch_t matches[3];
   int col, row;
   double num, sum, delta;
@@ -619,9 +625,9 @@ static ARRAY_T* parse_nums(MTEXT_T *parser, BOOLEAN_T probabilities, BOOLEAN_T a
   char *name, *type;
   ARRAY_T *array;
   ALPH_T* alpha;
-  BOOLEAN_T problem;
+  bool problem;
 
-  problem = FALSE;
+  problem = false;
   name = get_motif_id(parser->mscope.motif);
   type = (probabilities ? "PSPM" : "PSSM");
   row = parser->counter;
@@ -640,7 +646,7 @@ static ARRAY_T* parse_nums(MTEXT_T *parser, BOOLEAN_T probabilities, BOOLEAN_T a
         error(parser, "The PSPM of motif %s has a number which isn't a "
             "probability on row %d column %d. The number should be in "
             "the range 0 to 1 but it was %g.\n", name, row+1, col+1, num);
-        problem = TRUE;
+        problem = true;
       }
       sum += num;
     }
@@ -653,7 +659,7 @@ static ARRAY_T* parse_nums(MTEXT_T *parser, BOOLEAN_T probabilities, BOOLEAN_T a
     error(parser, "The %s of motif %s has unparsable characters \"%s\" on "
         "the end of row %d. Only spaces or tabs are allowed on the same "
         "line as the numbers.\n", type, name, substr, row+1);
-    problem = TRUE;
+    problem = true;
   }
   if (col == 0) {
     if (array) free_array(array);  
@@ -672,14 +678,14 @@ static ARRAY_T* parse_nums(MTEXT_T *parser, BOOLEAN_T probabilities, BOOLEAN_T a
         error(parser, "The %s of motif %s has %d numbers in the %d row but "
             "this does not match with any alphabet.\n", type, name, 
             col, row+1);
-        problem = TRUE;
+        problem = true;
     }
   } else if (col != alph_size_core(alpha)) {
     error(parser, "The %s of motif %s has %d numbers in the %d row but "
         "this does not match with the %s alphabet which requires %d "
         "numbers.\n", type, name, col+1, row, alph_name(alpha), 
         alph_size_core(alpha));
-    problem = TRUE;
+    problem = true;
   }
   if (probabilities) {
     delta = sum - 1;
@@ -687,7 +693,7 @@ static ARRAY_T* parse_nums(MTEXT_T *parser, BOOLEAN_T probabilities, BOOLEAN_T a
     if (delta > 0.1) {
       error(parser, "The PSPM of motif %s has probabilities which don't "
           "sum to 1 on row %d.\n", name, row+1);
-      problem = TRUE;
+      problem = true;
     }
   }
   if (!problem) return array;
@@ -702,11 +708,11 @@ static ARRAY_T* parse_nums(MTEXT_T *parser, BOOLEAN_T probabilities, BOOLEAN_T a
  * required for MEME text format. Also attempts to bail out if the file
  * looks like the new HTML format.
  */
-static BOOLEAN_T state_find_version(MTEXT_T *parser, const char *line) {
+static bool state_find_version(MTEXT_T *parser, const char *line) {
   regmatch_t matches[7];
   memset(matches, 0, sizeof(regmatch_t)*7);
   if (regexec_or_die("html", &(parser->re.html), line, 0, matches, 0)) {
-    parser->fscope.is_html = TRUE; 
+    parser->fscope.is_html = true; 
   }
   memset(matches, 0, sizeof(regmatch_t)*7);
   if (regexec_or_die("version", &(parser->re.version), line, 7, matches, 0)) {
@@ -734,7 +740,7 @@ static BOOLEAN_T state_find_version(MTEXT_T *parser, const char *line) {
     }
     parser->state = MTEXT_PRE_MOTIF;
   }
-  return TRUE;
+  return true;
 }
 
 /*
@@ -745,9 +751,9 @@ static BOOLEAN_T state_find_version(MTEXT_T *parser, const char *line) {
  * When it spots the first motif it changes the state and rejects the line
  * so the motif parsing code can read it in full.
  */
-static BOOLEAN_T state_pre_motif(MTEXT_T *parser, const char *line) {
+static bool state_pre_motif(MTEXT_T *parser, const char *line) {
   regmatch_t matches[6];
-  BOOLEAN_T pos, neg;
+  bool pos, neg;
   const char *substr;
   char *temp;
   int len, flags;
@@ -804,25 +810,27 @@ static BOOLEAN_T state_pre_motif(MTEXT_T *parser, const char *line) {
     parser->sum = 0;
     parser->state = MTEXT_IN_LETTER_FREQ;
   } else if (regexec_or_die("background", &(parser->re.background), line, 2, matches, 0)) {
-    substr = line+(matches[1].rm_so);
-    if (regexec_or_die("background source", &(parser->re.bg_source), substr, 2, matches, 0)) {
-      parser->fscope.bg_source = regex_str(matches+1, substr);
+    if (matches[1].rm_so >= 0) {			// don't parse if nothing remained
+      substr = line+(matches[1].rm_so);
+      if (regexec_or_die("background source", &(parser->re.bg_source), substr, 2, matches, 0)) {
+	parser->fscope.bg_source = regex_str(matches+1, substr);
+      }
     }
     parser->counter = 0;
     parser->sum = 0;
     parser->state = MTEXT_IN_BACKGROUND;
   } else if (regexec_or_die("motif intro", &(parser->re.motif_intro), line, 0, matches, 0)) {
     parser->state = MTEXT_IN_MOTIF;
-    return FALSE;// need to reparse this line
+    return false;// need to reparse this line
   } else if (regexec_or_die("combined sites header", &(parser->re.s_sites_header), line, 0, matches, 0)) {
     parser->state = MTEXT_PRE_C_SITES;
     parser->counter = 0;
-    return FALSE;
+    return false;
   }
-  return TRUE;
+  return true;
 }
 
-static BOOLEAN_T state_in_alphabet(MTEXT_T *parser, const char *line) {
+static bool state_in_alphabet(MTEXT_T *parser, const char *line) {
   regmatch_t matches[4];
   bool done;
   PARMSG_T *message;
@@ -837,9 +845,20 @@ static BOOLEAN_T state_in_alphabet(MTEXT_T *parser, const char *line) {
   } else if (regexec_or_die("divider", &(parser->re.divider), line, 4, matches, 0)) {
     // seen line of "****"
     if (parser->counter > 0) done = true;
+  } else if (regexec_or_die("comment line", &(parser->re.comment_line), line, 0, matches, 0)) {
+    // seen line containing whitespace and then "#"
   } else {
     // try to parse line as part of the alphabet
-    alph_reader_line(parser->alph_rdr, line);
+    // after removing any trailing comment text
+    char *trimmed_line = mm_malloc(sizeof(char) * (strlen(line)+1));
+    int i = 0;
+    for (i=0; line[i] != '\0'; i++) {
+      if (line[i] == '#') { trimmed_line[i] = '\0'; break; }
+      trimmed_line[i] = line[i];
+    }
+    trimmed_line[i] = '\0';
+    alph_reader_line(parser->alph_rdr, trimmed_line);
+    free(trimmed_line);
   }
   if (done) alph_reader_done(parser->alph_rdr);
   // report any problems that the alphabet reader finds
@@ -874,7 +893,7 @@ static BOOLEAN_T state_in_alphabet(MTEXT_T *parser, const char *line) {
   return true;
 }
 
-static BOOLEAN_T state_in_freqs(MTEXT_T *parser, const char *line) {
+static bool state_in_freqs(MTEXT_T *parser, const char *line) {
   regmatch_t matches[5];
   char *array_name;
   const char *substr;
@@ -958,10 +977,10 @@ static BOOLEAN_T state_in_freqs(MTEXT_T *parser, const char *line) {
       for (i = 0; (*letters)[i] != '\0'; i++) {
         if (alph_index(*alph_p, (*letters)[i]) != i) {
           STR_T *buffer;
-          buffer = str_create(20);
+          buffer = str_create(100);
           error(parser, "The %s were ordered %s but for %s "
               "they must be ordered %s to ensure consistancy "
-              "with the motif matricies.", array_name, *letters,
+              "with the motif matrices.", array_name, *letters,
               alph_name(*alph_p), alph_string(*alph_p, buffer));
           str_destroy(buffer, false);
           break;
@@ -982,23 +1001,23 @@ static BOOLEAN_T state_in_freqs(MTEXT_T *parser, const char *line) {
   return true;
 }
 
-static BOOLEAN_T state_in_motif(MTEXT_T *parser, const char *line) {
+static bool state_in_motif(MTEXT_T *parser, const char *line) {
   regmatch_t matches[4];
   const char *substr;
   MOTIF_T *motif;
   RBTREE_T *kvpairs;
-  BOOLEAN_T bl_line;
+  bool bl_line;
   if (regexec_or_die("motif intro", &(parser->re.motif_intro), line, 4, matches, 0)) {
     bl_line = ((matches[1].rm_eo - matches[1].rm_so) >= 2);
     if (parser->mscope.motif && regex_cmp(matches+2, line, get_motif_id(parser->mscope.motif)) == 0) {
       // check if we've seen this motif intro before as the old html format 
       // has a nasty habit of repeating the intro
-      if (parser->fscope.is_html) return TRUE;
+      if (parser->fscope.is_html) return true;
       // Additionally it's possible to have one or both of:
       // MOTIF 1 width=18 seqs=18
       // BL    MOTIF 1 width=18 seqs=18
       // So only conclude this is a new motif if we see the same type twice.
-      if (parser->mscope.started_with_bl_line != bl_line) return TRUE;
+      if (parser->mscope.started_with_bl_line != bl_line) return true;
     }
     enqueue_motif(parser);// enqueue existing motifs
     // create a new motif
@@ -1027,13 +1046,20 @@ static BOOLEAN_T state_in_motif(MTEXT_T *parser, const char *line) {
     assert(parser->mscope.motif != NULL);
     if (parser->mscope.motif->freqs != NULL) {
       error(parser, "Repeated \"letter-probability matrix\" section in motif %s.\n", 
-          get_motif_id(parser->mscope.motif));
-      return TRUE;
+        get_motif_id(parser->mscope.motif));
+      return true;
     }
     substr = line+(matches[1].rm_so);
     // parse key / value pairs
     kvpairs = parse_keyvals(parser, substr);
     set_motif_params(parser, kvpairs, "pspm", "alength", "w", "nsites", "E");
+    // Allow "P=" instead of "E=".
+    if (parser->mscope.motif->evalue < 0) {
+      set_motif_params(parser, kvpairs, "pspm", "alength", "w", "nsites", "P");
+    }
+    if (parser->mscope.motif->evalue < 0) {
+      parser->mscope.motif->evalue = parser->mscope.motif->log_evalue = 0;
+    }
     rbtree_destroy(kvpairs);
     parser->counter = 0;
     parser->state = MTEXT_IN_PSPM;
@@ -1041,8 +1067,8 @@ static BOOLEAN_T state_in_motif(MTEXT_T *parser, const char *line) {
     assert(parser->mscope.motif != NULL);
     if (parser->mscope.motif->scores != NULL) {
       error(parser, "Repeated \"log-odds matrix\" section in motif %s.\n", 
-          get_motif_id(parser->mscope.motif));
-      return TRUE;
+        get_motif_id(parser->mscope.motif));
+      return true;
     }
     substr = line+(matches[1].rm_so);
     kvpairs = parse_keyvals(parser, substr);
@@ -1056,12 +1082,12 @@ static BOOLEAN_T state_in_motif(MTEXT_T *parser, const char *line) {
   } else if (regexec_or_die("combined sites header", &(parser->re.s_sites_header), line, 0, matches, 0)) {
     parser->state = MTEXT_PRE_C_SITES;
     parser->counter = 0;
-    return FALSE;
+    return false;
   }
-  return TRUE;
-}
+  return true;
+} // state_in_motif
 
-static BOOLEAN_T state_in_pspm(MTEXT_T *parser, const char *line) {
+static bool state_in_pspm(MTEXT_T *parser, const char *line) {
   ARRAY_T *row;
   MOTIF_T *motif;
 
@@ -1073,30 +1099,30 @@ static BOOLEAN_T state_in_pspm(MTEXT_T *parser, const char *line) {
     assert(parser->counter == 0);
   }
   // parse the line
-  row = parse_nums(parser, TRUE, !parser->mscope.has_width, line);
+  row = parse_nums(parser, true, !parser->mscope.has_width, line);
   if (row) {
     if (motif->freqs) {
       grow_matrix(row, motif->freqs);
     } else {
-      motif->freqs = array_to_matrix(TRUE, row);
+      motif->freqs = array_to_matrix(true, row);
     }
     free_array(row);
     parser->counter++;
   } else if (!parser->mscope.has_width) {
     // assume the first blank line or non-number is the end of the numbers
     motif->length = parser->counter;
-    parser->mscope.has_width = TRUE;
+    parser->mscope.has_width = true;
     parser->state = MTEXT_IN_MOTIF;
-    return FALSE;
+    return false;
   }
   if (parser->mscope.has_width && 
       parser->counter >= get_motif_length(parser->mscope.motif)) {
     parser->state = MTEXT_IN_MOTIF;
   }
-  return TRUE;
+  return true;
 }
 
-static BOOLEAN_T state_in_pssm(MTEXT_T *parser, const char *line) {
+static bool state_in_pssm(MTEXT_T *parser, const char *line) {
   ARRAY_T *row;
   MOTIF_T *motif;
 
@@ -1108,27 +1134,27 @@ static BOOLEAN_T state_in_pssm(MTEXT_T *parser, const char *line) {
     assert(parser->counter == 0);
   }
   // parse the line
-  row = parse_nums(parser, FALSE, !parser->mscope.has_width, line);
+  row = parse_nums(parser, false, !parser->mscope.has_width, line);
   if (row) {
     if (motif->scores) {
       grow_matrix(row, motif->scores);
     } else {
-      motif->scores = array_to_matrix(TRUE, row);
+      motif->scores = array_to_matrix(true, row);
     }
     free_array(row);
     parser->counter++;
   } else if (!parser->mscope.has_width) {
     // assume the first blank line is the end of the numbers
     motif->length = parser->counter;
-    parser->mscope.has_width = TRUE;
+    parser->mscope.has_width = true;
     parser->state = MTEXT_IN_MOTIF;
-    return FALSE;
+    return false;
   }
   if (parser->mscope.has_width && 
       parser->counter >= get_motif_length(parser->mscope.motif)) {
     parser->state = MTEXT_IN_MOTIF;
   }
-  return TRUE;
+  return true;
 }
 
 static void cleanup_in_pspm_or_pssm(MTEXT_T *parser, const char *type) {
@@ -1141,11 +1167,11 @@ static void cleanup_in_pspm_or_pssm(MTEXT_T *parser, const char *type) {
     // note that we return the motif anyway...
   }
   motif->length = parser->counter;
-  parser->mscope.has_width = TRUE;
+  parser->mscope.has_width = true;
   parser->state = MTEXT_IN_MOTIF;
 }
 
-static BOOLEAN_T state_pre_s_sites(MTEXT_T *parser, const char *line) {
+static bool state_pre_s_sites(MTEXT_T *parser, const char *line) {
   regmatch_t matches[3];
   regex_t *patterns[4] = {
     &(parser->re.s_sites_header), 
@@ -1163,21 +1189,21 @@ static BOOLEAN_T state_pre_s_sites(MTEXT_T *parser, const char *line) {
       parser->state = MTEXT_IN_C_SITES;
       parser->counter = 0;
     }
-    return TRUE;
+    return true;
   } else {
     parser->state = MTEXT_DONE;
-    return FALSE;
+    return false;
   }
 }
 
-static BOOLEAN_T state_in_s_sites_blocks(MTEXT_T *parser, const char *line) {
+static bool state_in_s_sites_blocks(MTEXT_T *parser, const char *line) {
   SCANNED_SEQ_T *sseq;
   int i;
-  BOOLEAN_T continued;
+  bool continued;
   const char *substr;
   regmatch_t matches[8];
   
-  continued = FALSE;
+  continued = false;
   substr = line;
   // skip leading whitespace
   while (isspace(*substr)) substr++;
@@ -1196,16 +1222,16 @@ static BOOLEAN_T state_in_s_sites_blocks(MTEXT_T *parser, const char *line) {
       // left bracket + 2 = right bracket in ascii
       if ((regex_chr(matches+1, substr) + 2) != regex_chr(matches+7, substr)) {
         error(parser, "Brackets don't match!\n");
-        return TRUE;
+        return true;
       }
       // get the index of the motif
       motif_i = regex_int(matches+3, substr, 0) - 1; // turn into index
       if (motif_i < 0 || motif_i >= parser->fscope.motif_count) {
         error(parser, "Bad motif number %d in scanned sites.\n", motif_i +1);
-        return TRUE;
+        return true;
       }
       if (parser->options & SCANNED_SITES) {
-        BOOLEAN_T isstrong;
+        bool isstrong;
         char strand;
         double log10pvalue;
         int motif_len;
@@ -1224,18 +1250,18 @@ static BOOLEAN_T state_in_s_sites_blocks(MTEXT_T *parser, const char *line) {
       substr += matches[0].rm_eo;
     } else if (regexec_or_die("c sites end", &(parser->re.s_sites_end), substr, 0, matches, 0)) {
       // found a line continuation indicator
-      continued = TRUE;
+      continued = true;
       substr++;
       break;
     } else {
       error(parser, "Unexpected text in combined sites: %s\n", substr);
-      return TRUE;
+      return true;
     }
     if (*substr == '_') {
       substr++;
     } else if (*substr != '\0') {
       error(parser, "Expected underscore!\n");
-      return TRUE;
+      return true;
     }
   }
   if (continued) {
@@ -1243,10 +1269,10 @@ static BOOLEAN_T state_in_s_sites_blocks(MTEXT_T *parser, const char *line) {
   } else {
     parser->state = MTEXT_IN_C_SITES;
   }
-  return TRUE;
+  return true;
 }
 
-static BOOLEAN_T state_in_s_sites(MTEXT_T *parser, const char *line) {
+static bool state_in_s_sites(MTEXT_T *parser, const char *line) {
   regmatch_t matches[8];
   const char *blocks, *substr;
   char *seq_id;
@@ -1275,7 +1301,7 @@ static BOOLEAN_T state_in_s_sites(MTEXT_T *parser, const char *line) {
     error(parser, "Unrecognised line \"%s\" in scanned sites.\n", line);
     parser->state = MTEXT_DONE;
   }
-  return TRUE;
+  return true;
 }
 
 /*
@@ -1285,10 +1311,10 @@ static BOOLEAN_T state_in_s_sites(MTEXT_T *parser, const char *line) {
  * the line. A rejected line will be sent on to another parsing method dependent
  * on the new state.
  */
-static void dispatch_line(MTEXT_T *parser, const char *line, size_t size, BOOLEAN_T end) {
-  BOOLEAN_T consumed;
+static void dispatch_line(MTEXT_T *parser, const char *line, size_t size, bool end) {
+  bool consumed;
   MTEXT_STATE_EN before;
-  consumed = FALSE;
+  consumed = false;
   while (!consumed) {
     before = parser->state;
     switch (parser->state) {
@@ -1326,7 +1352,7 @@ static void dispatch_line(MTEXT_T *parser, const char *line, size_t size, BOOLEA
         consumed = state_in_s_sites_blocks(parser, line);
         break;
       case MTEXT_DONE:
-        consumed = TRUE;
+        consumed = true;
         break;//do nothing
       default:
         die("Unknown state");
@@ -1371,7 +1397,7 @@ static void dispatch_line(MTEXT_T *parser, const char *line, size_t size, BOOLEA
  * Receives chunks of the file and caches or splits as necessary to get lines 
  * that can be parsed. Complete lines are sent to the dispatch_line method.
  */
-#define MAX_LINE_LEN 1000
+#define MAX_LINE_LEN 5000
 void mtext_update(void *data, const char *chunk, size_t size, short end) {
   assert(data != NULL);
 
@@ -1398,7 +1424,7 @@ void mtext_update(void *data, const char *chunk, size_t size, short end) {
         str_truncate(parser->line, -1);
       }
       dispatch_line(parser, str_internal(parser->line), str_len(parser->line), 
-          (end && i >= size - 1));
+        (end && i >= size - 1));
       // don't allow it to shrink the buffer
       str_ensure(parser->line, str_len(parser->line));
       str_clear(parser->line);
@@ -1408,7 +1434,7 @@ void mtext_update(void *data, const char *chunk, size_t size, short end) {
   if (size == 0 && end) {
     dispatch_line(parser, str_internal(parser->line), str_len(parser->line), 1);
   }
-}
+} // mtext_update
 
 short mtext_has_format_match(void *data) {
   return ((MTEXT_T*)data)->format_match;
@@ -1454,13 +1480,13 @@ int mtext_get_strands(void *data) {
   return parser->fscope.strands;
 }
 
-BOOLEAN_T mtext_get_bg(void *data, ARRAY_T **bg) {
+bool mtext_get_bg(void *data, ARRAY_T **bg) {
   MTEXT_T *parser;
   parser = (MTEXT_T*)data;
-  if (parser->fscope.background == NULL) return FALSE;
+  if (parser->fscope.background == NULL) return false;
   *bg = resize_array(*bg, get_array_length(parser->fscope.background));
   copy_array(parser->fscope.background, *bg);
-  return TRUE;
+  return true;
 }
 
 void* mtext_motif_optional(void *data, int option) {
@@ -1486,7 +1512,7 @@ void* mtext_file_optional(void *data, int option) {
   if (parser->fscope.options_found & option) {
     if (parser->fscope.options_returned & option) {
       die("Sorry, optional values are only returned once. "
-          "This is because we can not guarantee that the "
+          "This is because we cannot guarantee that the "
           "previous caller did not deallocate the memory. "
           "Hence this is a feature to avoid memory bugs.\n");
       return NULL;

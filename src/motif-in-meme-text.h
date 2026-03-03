@@ -17,7 +17,7 @@ short mtext_has_motif(void *data);
 MOTIF_T* mtext_next_motif(void *data);
 ALPH_T* mtext_get_alphabet(void *data);
 int mtext_get_strands(void *data);
-BOOLEAN_T mtext_get_bg(void *data, ARRAY_T **bg);
+bool mtext_get_bg(void *data, ARRAY_T **bg);
 void* mtext_motif_optional(void *data, int option);
 void* mtext_file_optional(void *data, int option);
 

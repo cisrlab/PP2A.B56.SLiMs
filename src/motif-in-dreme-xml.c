@@ -78,10 +78,10 @@ static void destroy_parser_data(CTX_T *data) {
 void dxml_error(void *ctx, const char *fmt, va_list ap) {
   CTX_T *data = (CTX_T*)ctx;
   int len;
-  char dummy[1], *msg;
+  char *msg;
   va_list ap_copy;
   va_copy(ap_copy, ap);
-  len = vsnprintf(dummy, 1, fmt, ap_copy);
+  len = vsnprintf(NULL, 0, fmt, ap_copy);
   va_end(ap_copy);
   msg = mm_malloc(sizeof(char) * (len + 1));
   vsnprintf(msg, len + 1, fmt, ap);
@@ -105,9 +105,9 @@ static void local_error(CTX_T *data, char *format, ...) {
 static void local_warning(CTX_T *data, char *format, ...) {
   va_list  argp;
   int len;
-  char dummy[1], *msg;
+  char *msg;
   va_start(argp, format);
-  len = vsnprintf(dummy, 1, format, argp);
+  len = vsnprintf(NULL, 0, format, argp);
   va_end(argp);
   msg = mm_malloc(sizeof(char) * (len + 1));
   va_start(argp, format);
@@ -205,7 +205,7 @@ void dxml_handle_background(void *ctx, int nfreqs, double *freqs,
   for (i = 0; i < nfreqs; i++) set_array_item(i, freqs[i], bg);
 }
 
-void dxml_start_motif(void *ctx, char *id, char *seq, int length, 
+void dxml_start_motif(void *ctx, char *id, char *alt, char *seq, int length, 
     long num_sites, long p_hits, long n_hits, 
     double log10pvalue, double log10evalue, double log10uevalue) {
   CTX_T *data;
@@ -216,7 +216,7 @@ void dxml_start_motif(void *ctx, char *id, char *seq, int length,
   motif = data->motif;
   memset(motif, 0, sizeof(MOTIF_T));
   set_motif_id(seq, strlen(seq), motif);
-  set_motif_id2("DREME", 5, motif);
+  set_motif_id2(alt, strlen(alt), motif);
   set_motif_strand('+', motif);
   motif->length = length;
   motif->num_sites = num_sites;
@@ -387,13 +387,13 @@ int dxml_get_strands(void *data) {
   return (parser->data->fscope.strands == DREME_STRANDS_BOTH ? 2 : 1);
 }
 
-BOOLEAN_T dxml_get_bg(void *data, ARRAY_T **bg) {
+bool dxml_get_bg(void *data, ARRAY_T **bg) {
   DXML_T *parser;
   parser = (DXML_T*)data;
-  if (parser->data->fscope.background == NULL) return FALSE;
+  if (parser->data->fscope.background == NULL) return false;
   *bg = resize_array(*bg, get_array_length(parser->data->fscope.background));
   copy_array(parser->data->fscope.background, *bg);
-  return TRUE;
+  return true;
 }
 
 void* dxml_motif_optional(void *data, int option) {
@@ -419,7 +419,7 @@ void* dxml_file_optional(void *data, int option) {
   if (parser->data->fscope.options_found & option) {
     if (parser->data->fscope.options_returned & option) {
       die("Sorry, optional values are only returned once. "
-          "This is because we can not guarantee that the "
+          "This is because we cannot guarantee that the "
           "previous caller did not deallocate the memory. "
           "Hence this is a feature to avoid memory bugs.\n");
       return NULL;

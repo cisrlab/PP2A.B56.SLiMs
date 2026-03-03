@@ -26,7 +26,7 @@
   (byte & 0x08 ? 1 : 0), \
   (byte & 0x04 ? 1 : 0), \
   (byte & 0x02 ? 1 : 0), \
-  (byte & 0x01 ? 1 : 0)
+  (byte & 0x01 ? 1 : 0) 
 
 /*
  * Reads a UTF-8 codepoint. The string must be null terminated.
@@ -103,7 +103,7 @@ static inline int read_utf8_codepoint(const char *str, uint32_t *codepoint_out) 
 /*
  * scans through a null terminated input string and copies it into the
  * buffer replacing '&' with '&amp;', '<' with '&lt;', '>' with '&gt;' and
- * optionally '"' with '&quot;'.
+ * optionally '"' with '&quot;'. 
  *
  * WARNING: do not use this twice in one printf with the same buffer as the
  * second call will overwrite the buffer before the printf is evaluated.
@@ -120,18 +120,22 @@ char* xmlify(const char *input, STR_T *buffer, bool replace_quote) {
       case '&': str_append(buffer, "&amp;", 5); continue;
       case '<': str_append(buffer, "&lt;", 4); continue;
       case '>': str_append(buffer, "&gt;", 4); continue;
-      case 9:
+      case 9: 
         if (!replace_quote) str_append_code(buffer, cp);
-        else str_append(buffer, "&#9;", 4); continue;
+        else str_append(buffer, "&#9;", 4); 
+        continue;
       case 10:
         if (!replace_quote) str_append_code(buffer, cp);
-        else str_append(buffer, "&#10;", 5); continue;
+        else str_append(buffer, "&#10;", 5); 
+        continue;
       case 13:
         if (!replace_quote) str_append_code(buffer, cp);
-        else str_append(buffer, "&#13;", 5); continue;
+        else str_append(buffer, "&#13;", 5); 
+	continue;
       case '"':
         if (!replace_quote) str_append_code(buffer, cp);
-        else str_append(buffer, "&quot;", 6); continue;
+        else str_append(buffer, "&quot;", 6); 
+	continue;
       default:
         // check that the codepoint can be represented in XML 1.0
         // It must be within the allowed ranges:
@@ -140,7 +144,7 @@ char* xmlify(const char *input, STR_T *buffer, bool replace_quote) {
         // U+10000–U+10FFFF
         // also not in the discouraged ranges:
         // U+007F–U+0084, U+0086–U+009F
-        if (!((cp >= 32 && cp < 127) || (cp > 132 && cp < 134) ||
+        if (!((cp >= 32 && cp < 127) || (cp > 132 && cp < 134) || 
             (cp > 159 && cp <= 55295) || (cp >= 57344 && cp <= 65533) ||
             (cp >= 65536 && cp <= 1114111))) {
           continue; // not possible to represent! skip!
@@ -176,7 +180,7 @@ char* replace_xml_chars(char *input, char *buffer, int buffer_size, int replace_
       case '&': copy = "&amp;"; break;
       case '<': copy = "&lt;"; break;
       case '>': copy = "&gt;"; break;
-      case 9:
+      case 9: 
         if (!replace_quote) goto dupe_codepoint;
         copy = "&#9;"; break;
       case 10:
@@ -196,8 +200,8 @@ char* replace_xml_chars(char *input, char *buffer, int buffer_size, int replace_
         // U+10000–U+10FFFF
         // also not in the discouraged ranges:
         // U+007F–U+0084, U+0086–U+009F
-        //
-        if (!((cp >= 32 && cp < 127) || (cp > 132 && cp < 134) ||
+        // 
+        if (!((cp >= 32 && cp < 127) || (cp > 132 && cp < 134) || 
             (cp > 159 && cp <= 55295) || (cp >= 57344 && cp <= 65533) ||
             (cp >= 65536 && cp <= 1114111))) {
           // not possible to represent! skip!

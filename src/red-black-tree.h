@@ -97,7 +97,7 @@ int rbtree_size(RBTREE_T *tree);
  * node will be created using the key. If created is non-null then it will be set to true
  * when a new node is created.
  */
-RBNODE_T* rbtree_lookup(RBTREE_T *tree, void *key, BOOLEAN_T create, BOOLEAN_T *created);
+RBNODE_T* rbtree_lookup(RBTREE_T *tree, void *key, bool create, bool *created);
 
 /*
  * rbtree_find
@@ -140,7 +140,7 @@ RBNODE_T* rbtree_put(RBTREE_T *tree, void *key, void *value);
  * Makes a new entry in the tree.
  * Returns true on succes, false otherwise.
  */
-BOOLEAN_T rbtree_make(RBTREE_T *tree, void *key, void *value);
+bool rbtree_make(RBTREE_T *tree, void *key, void *value);
 
 /*
  * rbtree_delete
@@ -158,7 +158,7 @@ void rbtree_delete(RBTREE_T *tree, RBNODE_T *node, void **removed_key, void **re
  * are freed by free_key and free_value if these functions were set in the constructor.
  * Returns true if the key existed.
  */
-BOOLEAN_T rbtree_remove(RBTREE_T *tree, void *key);
+bool rbtree_remove(RBTREE_T *tree, void *key);
 
 /*
  * rbtree_first
